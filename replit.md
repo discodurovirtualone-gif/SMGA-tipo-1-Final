@@ -1,6 +1,17 @@
-# Sistema de Mejora Genética Animal (SMGA)
+# Sistema de Mejora Genética Animal (SMGA) — Tipo 2
 
-A cattle farm genetic improvement management system built with React, Vite, TypeScript, and a Node.js/Express backend API connected to a Replit PostgreSQL database.
+A cattle farm genetic improvement management system built with React, Vite, TypeScript, and Supabase. This is **SMGA Tipo 2**, a redesigned accessible version of the original SMGA system.
+
+**GitHub repository:** https://github.com/discodurovirtualone-gif/smga-tipo-2
+
+## Accessibility Features (NIH/NLM Guidelines)
+- **Typography**: Arial/Verdana system fonts, 18px base font size for readability
+- **Color coding**: Amber for basic data, blue for reproductive, green for productive, purple for health
+- **Full-width navigable cards** with icon + title + subtitle + help text on each module
+- **Descriptive labels**: "Registros Básicos" → "Datos de Animales: nombre, raza, edad"
+- **Contextual help text** below each form section explaining what data to enter
+- **Prominent back button** with text "Volver al Inicio" fixed at bottom-left on all pages
+- **High contrast**: dark text on light colored backgrounds, no low-contrast combinations
 
 ## Architecture
 

@@ -1,140 +1,240 @@
 import { Link } from "react-router-dom";
-import { Milk, ClipboardList, NotebookPen, FileBarChart, BarChart3, LayoutDashboard, BookOpen, Calculator, Heart, Dna, Settings } from "lucide-react";
+import {
+  Milk, ClipboardList, NotebookPen, FileBarChart, BarChart3,
+  LayoutDashboard, BookOpen, Calculator, Heart, Dna, Settings,
+  Upload, FileDown
+} from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import BulkUpload from "@/components/BulkUpload";
 import PdfDownload from "@/components/PdfDownload";
 
 const inputItems = [
-  { title: "Registros Básicos", description: "Datos base de cada vaca: raza, parto, edad", icon: BookOpen, path: "/basicos" },
-  { title: "Registros Reproductivos", description: "Parto, servicios, concepción, toro usado y más", icon: NotebookPen, path: "/reproductivos" },
-  { title: "Registros Productivos", description: "Producción de leche, grasa y proteína", icon: Milk, path: "/productivos" },
-  { title: "Registros Otros", description: "Renguera, mastitis, longevidad y más", icon: ClipboardList, path: "/otros" },
+  {
+    title: "Datos de Animales",
+    subtitle: "Nombre, raza, fecha de nacimiento y potencial",
+    description: "Aquí se registra la información básica de cada vaca del rodeo.",
+    icon: BookOpen,
+    path: "/basicos",
+    bg: "bg-[hsl(var(--cat-basico-bg))]",
+    border: "border-[hsl(var(--cat-basico-border))]",
+    text: "text-[hsl(var(--cat-basico-text))]",
+    iconColor: "text-[hsl(var(--cat-basico-icon))]",
+    iconBg: "bg-[hsl(var(--cat-basico-border))]/20",
+  },
+  {
+    title: "Datos Reproductivos",
+    subtitle: "Partos, servicios, concepción y toro utilizado",
+    description: "Registre las fechas de parto, servicios y resultados reproductivos de cada animal.",
+    icon: NotebookPen,
+    path: "/reproductivos",
+    bg: "bg-[hsl(var(--cat-reproductivo-bg))]",
+    border: "border-[hsl(var(--cat-reproductivo-border))]",
+    text: "text-[hsl(var(--cat-reproductivo-text))]",
+    iconColor: "text-[hsl(var(--cat-reproductivo-icon))]",
+    iconBg: "bg-[hsl(var(--cat-reproductivo-border))]/20",
+  },
+  {
+    title: "Datos Productivos",
+    subtitle: "Producción de leche, porcentaje de grasa y proteína",
+    description: "Ingrese los controles de producción de leche registrados durante la lactancia.",
+    icon: Milk,
+    path: "/productivos",
+    bg: "bg-[hsl(var(--cat-productivo-bg))]",
+    border: "border-[hsl(var(--cat-productivo-border))]",
+    text: "text-[hsl(var(--cat-productivo-text))]",
+    iconColor: "text-[hsl(var(--cat-productivo-icon))]",
+    iconBg: "bg-[hsl(var(--cat-productivo-border))]/20",
+  },
+  {
+    title: "Datos de Salud y Condición",
+    subtitle: "Renguera, mastitis, longevidad y fortaleza de patas",
+    description: "Registre puntajes de salud y condición corporal de los animales.",
+    icon: ClipboardList,
+    path: "/otros",
+    bg: "bg-[hsl(var(--cat-otros-bg))]",
+    border: "border-[hsl(var(--cat-otros-border))]",
+    text: "text-[hsl(var(--cat-otros-text))]",
+    iconColor: "text-[hsl(var(--cat-otros-icon))]",
+    iconBg: "bg-[hsl(var(--cat-otros-border))]/20",
+  },
 ];
 
 const resultItems = [
-  { title: "Cálculo Wood 305", description: "Producción estimada con fórmula de Wood", icon: Calculator, path: "/produccion-wood" },
-  { title: "Indicadores Reproductivos", description: "IIP, IPC, servicios/concepción y ranking", icon: Heart, path: "/indicadores-reproductivos" },
-  { title: "Valor de Cría", description: "Cálculo genético BV y valor hijas", icon: Dna, path: "/valor-cria" },
+  {
+    title: "Producción Estimada (Wood 305)",
+    subtitle: "Cálculo de producción a 305 días por animal",
+    description: "Vea la producción esperada de cada vaca usando la fórmula de Wood.",
+    icon: Calculator,
+    path: "/produccion-wood",
+  },
+  {
+    title: "Indicadores Reproductivos",
+    subtitle: "IIP, IPC, número de servicios y ranking",
+    description: "Compare el desempeño reproductivo de sus animales.",
+    icon: Heart,
+    path: "/indicadores-reproductivos",
+  },
+  {
+    title: "Valor de Cría Genético",
+    subtitle: "Valor genético y estimación del valor de las hijas",
+    description: "Calcule el valor genético de sus animales y su progenie esperada.",
+    icon: Dna,
+    path: "/valor-cria",
+  },
 ];
 
 const reporteItems = [
-  { title: "Reporte Vacas", description: "Reportes e indicadores de vacas", icon: FileBarChart, path: "/reporte-vacas" },
-  { title: "Reporte Toros", description: "Índices genéticos y retorno económico", icon: BarChart3, path: "/reporte-toros" },
-  { title: "Tablero Final", description: "Dashboard general del sistema", icon: LayoutDashboard, path: "/tablero-final" },
+  {
+    title: "Reporte de Vacas",
+    subtitle: "Resumen e indicadores del rodeo completo",
+    description: "Genere un reporte detallado con todos los indicadores de sus vacas.",
+    icon: FileBarChart,
+    path: "/reporte-vacas",
+  },
+  {
+    title: "Reporte de Toros",
+    subtitle: "Índices genéticos y retorno económico por toro",
+    description: "Compare toros y calcule el retorno económico esperado de cada uno.",
+    icon: BarChart3,
+    path: "/reporte-toros",
+  },
+  {
+    title: "Tablero General",
+    subtitle: "Vista completa del sistema en un solo lugar",
+    description: "Resumen ejecutivo con los principales indicadores del sistema.",
+    icon: LayoutDashboard,
+    path: "/tablero-final",
+  },
 ];
+
+const SectionLabel = ({ icon, label, color }: { icon: string; label: string; color: string }) => (
+  <div className={`flex items-center gap-2 mb-5`}>
+    <span className="text-2xl">{icon}</span>
+    <span className={`text-base font-bold uppercase tracking-wide ${color}`}>{label}</span>
+  </div>
+);
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
-      <div className="text-center mb-12">
-        <h1 className="text-5xl font-extrabold tracking-tight text-foreground mb-3">
+    <div className="min-h-screen flex flex-col items-center p-5 md:p-8 bg-background">
+
+      {/* Encabezado */}
+      <div className="text-center mb-10 max-w-2xl w-full">
+        <h1 className="text-4xl md:text-5xl font-extrabold text-foreground mb-3 leading-tight">
           🐄 Sistema de Mejora Genética
         </h1>
-        <p className="text-lg text-muted-foreground">
-          Seleccione el módulo de registro
+        <p className="text-lg text-muted-foreground font-medium">
+          Seleccione una opción para comenzar
         </p>
       </div>
 
       {/* Carga masiva y PDF */}
-      <div className="flex flex-col md:flex-row gap-4 max-w-5xl w-full mb-10">
-        <BulkUpload />
-        <PdfDownload />
+      <div className="flex flex-col md:flex-row gap-4 max-w-4xl w-full mb-10">
+        <div className="flex-1 flex flex-col gap-2">
+          <BulkUpload />
+          <p className="text-sm text-muted-foreground px-1">
+            Suba un archivo Excel o CSV con todos los datos de sus animales de una sola vez.
+          </p>
+        </div>
+        <div className="flex-1 flex flex-col gap-2">
+          <PdfDownload />
+          <p className="text-sm text-muted-foreground px-1">
+            Descargue una planilla en PDF para completar a mano o de forma digital.
+          </p>
+        </div>
       </div>
+
+      <Separator className="max-w-4xl w-full mb-10 bg-border" />
 
       {/* Ingreso de información */}
-      <p className="text-sm font-medium uppercase tracking-wider text-primary mb-4">
-        📥 Ingreso de Información
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl w-full">
-        {inputItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className="group relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-card p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-primary/60"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/10 group-hover:from-primary/10 group-hover:to-primary/20 transition-all duration-300" />
-            <div className="relative flex flex-col items-center text-center gap-4">
-              <div className="rounded-xl bg-primary/15 p-4">
-                <item.icon className="h-10 w-10 text-primary" />
+      <div className="max-w-4xl w-full mb-10">
+        <SectionLabel icon="📥" label="Ingreso de Información" color="text-foreground" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {inputItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex items-start gap-5 rounded-2xl border-2 ${item.border} ${item.bg} p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-black/20`}
+            >
+              <div className={`shrink-0 rounded-xl ${item.iconBg} p-4 mt-1`}>
+                <item.icon className={`h-9 w-9 ${item.iconColor}`} />
               </div>
-              <h2 className="text-xl font-bold text-card-foreground">{item.title}</h2>
-              <p className="text-sm text-muted-foreground">{item.description}</p>
-            </div>
-          </Link>
-        ))}
+              <div className="flex flex-col gap-1">
+                <span className={`text-xl font-bold ${item.text}`}>{item.title}</span>
+                <span className={`text-base font-semibold ${item.text} opacity-80`}>{item.subtitle}</span>
+                <span className="text-sm text-muted-foreground mt-1 leading-relaxed">{item.description}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
 
-      {/* Separador */}
-      <div className="max-w-5xl w-full my-10">
-        <Separator className="bg-border" />
-      </div>
+      <Separator className="max-w-4xl w-full mb-10 bg-border" />
 
       {/* Resultados */}
-      <p className="text-sm font-medium uppercase tracking-wider text-[hsl(var(--result-accent))] mb-4">
-        📊 Resultados
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl w-full">
-        {resultItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className="group relative overflow-hidden rounded-xl border-2 border-[hsl(var(--result-border))]/40 bg-[hsl(var(--result-bg))] p-5 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-[hsl(var(--result-border))]"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--result-accent))]/5 to-[hsl(var(--result-accent))]/10 group-hover:from-[hsl(var(--result-accent))]/10 group-hover:to-[hsl(var(--result-accent))]/20 transition-all duration-300" />
-            <div className="relative flex flex-col items-center text-center gap-3">
-              <div className="rounded-lg bg-[hsl(var(--result-accent))]/15 p-3">
-                <item.icon className="h-7 w-7 text-[hsl(var(--result-accent))]" />
+      <div className="max-w-4xl w-full mb-10">
+        <SectionLabel icon="📊" label="Cálculos y Resultados" color="text-[hsl(var(--cat-resultado-text))]" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {resultItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className="flex flex-col gap-3 rounded-2xl border-2 border-[hsl(var(--cat-resultado-border))] bg-[hsl(var(--cat-resultado-bg))] p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-black/20"
+            >
+              <div className="flex items-center gap-3">
+                <div className="shrink-0 rounded-xl bg-[hsl(var(--cat-resultado-border))]/20 p-3">
+                  <item.icon className="h-7 w-7 text-[hsl(var(--cat-resultado-icon))]" />
+                </div>
+                <span className="text-lg font-bold text-[hsl(var(--cat-resultado-text))]">{item.title}</span>
               </div>
-              <h2 className="text-base font-bold text-card-foreground">{item.title}</h2>
-              <p className="text-xs text-muted-foreground">{item.description}</p>
-            </div>
-          </Link>
-        ))}
+              <span className="text-sm font-semibold text-[hsl(var(--cat-resultado-text))] opacity-80">{item.subtitle}</span>
+              <span className="text-sm text-muted-foreground leading-relaxed">{item.description}</span>
+            </Link>
+          ))}
+        </div>
       </div>
 
-      {/* Separador */}
-      <div className="max-w-5xl w-full my-10">
-        <Separator className="bg-border" />
-      </div>
+      <Separator className="max-w-4xl w-full mb-10 bg-border" />
 
-      {/* Reportes y Tablero - color azul destacado */}
-      <p className="text-sm font-medium uppercase tracking-wider text-blue-600 mb-4">
-        📈 Reportes y Tablero
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full">
-        {reporteItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className="group relative overflow-hidden rounded-2xl border-2 border-blue-400/40 bg-blue-50 p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-500"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/10 group-hover:from-blue-500/15 group-hover:to-blue-600/20 transition-all duration-300" />
-            <div className="relative flex flex-col items-center text-center gap-4">
-              <div className="rounded-xl bg-blue-500/15 p-4">
-                <item.icon className="h-10 w-10 text-blue-600" />
+      {/* Reportes */}
+      <div className="max-w-4xl w-full mb-8">
+        <SectionLabel icon="📈" label="Reportes y Tablero" color="text-[hsl(var(--cat-reporte-text))]" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {reporteItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className="flex flex-col gap-3 rounded-2xl border-2 border-[hsl(var(--cat-reporte-border))] bg-[hsl(var(--cat-reporte-bg))] p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-black/20"
+            >
+              <div className="flex items-center gap-3">
+                <div className="shrink-0 rounded-xl bg-[hsl(var(--cat-reporte-border))]/20 p-3">
+                  <item.icon className="h-7 w-7 text-[hsl(var(--cat-reporte-icon))]" />
+                </div>
+                <span className="text-lg font-bold text-[hsl(var(--cat-reporte-text))]">{item.title}</span>
               </div>
-              <h2 className="text-xl font-bold text-blue-900">{item.title}</h2>
-              <p className="text-sm text-blue-700/70">{item.description}</p>
-            </div>
-          </Link>
-        ))}
+              <span className="text-sm font-semibold text-[hsl(var(--cat-reporte-text))] opacity-80">{item.subtitle}</span>
+              <span className="text-sm text-muted-foreground leading-relaxed">{item.description}</span>
+            </Link>
+          ))}
+        </div>
       </div>
 
-      {/* Ajustes - tarjeta pequeña al pie */}
-      <div className="max-w-4xl w-full mt-8 flex justify-end">
+      {/* Ajustes */}
+      <div className="max-w-4xl w-full flex justify-end">
         <Link
           to="/ajustes"
-          className="group inline-flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-5 py-3 shadow-sm transition-all duration-200 hover:shadow-md hover:bg-muted/70 hover:border-muted-foreground/30"
+          className="inline-flex items-center gap-3 rounded-xl border-2 border-border bg-muted/50 px-5 py-3 shadow-sm transition-all duration-200 hover:shadow-md hover:bg-muted focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-black/20"
         >
           <div className="rounded-lg bg-muted p-2">
             <Settings className="h-5 w-5 text-muted-foreground" />
           </div>
           <div className="text-left">
-            <p className="text-sm font-semibold text-foreground">Ajustes del Sistema</p>
-            <p className="text-xs text-muted-foreground">Potenciales, heredabilidad y factores de corrección</p>
+            <p className="text-base font-bold text-foreground">Ajustes del Sistema</p>
+            <p className="text-sm text-muted-foreground">Potenciales, heredabilidad y factores de corrección</p>
           </div>
         </Link>
       </div>
+
     </div>
   );
 };

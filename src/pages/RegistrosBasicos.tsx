@@ -78,11 +78,14 @@ const RegistrosBasicos = () => {
   const startNew = () => { setForm(emptyRegistro); setEditIndex(null); setOpen(true); };
 
   return (
-    <FormLayout title="Registros Básicos">
+    <FormLayout
+      title="Datos de Animales"
+      helpText="Aquí registra la información básica de cada vaca: nombre o número, raza, fecha de nacimiento y potencial de producción."
+    >
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
         <div className="flex gap-2">
           <PdfReportButton
-            title="Registros Básicos"
+            title="Datos de Animales"
             headers={["Ejercicio", "Id Vaca", "Fecha Nac.", "Raza", "Lactancia", "Edad (años)", "Potencial"]}
             rows={registrosBasicos.map(r => [r.ejercicio, r.id_vaca, r.fecha_nacimiento, r.raza, r.lactancia, r.edad, r.potencial_vaca])}
           />

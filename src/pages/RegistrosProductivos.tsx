@@ -119,7 +119,10 @@ const RegistrosProductivos = () => {
   );
 
   return (
-    <FormLayout title="Registros Productivos">
+    <FormLayout
+      title="Datos Productivos de Leche"
+      helpText="Ingrese los controles de producción de leche de cada animal. Los valores se usan para calcular la producción estimada a 305 días."
+    >
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
         <Input placeholder="Filtrar por Id Vaca..." value={filterText} onChange={e => setFilterText(e.target.value)} className="max-w-xs" />
         <div className="flex gap-2">

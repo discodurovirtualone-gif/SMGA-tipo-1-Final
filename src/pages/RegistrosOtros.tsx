@@ -69,7 +69,10 @@ const RegistrosOtros = () => {
   };
 
   return (
-    <FormLayout title="Registros Otros">
+    <FormLayout
+      title="Salud y Condición Corporal"
+      helpText="Registre puntajes de salud de 1 a 5 para cada animal. 1 indica problemas graves, 5 indica excelente condición."
+    >
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
         <div className="flex gap-2">
           <PdfReportButton

@@ -68,20 +68,12 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
         },
       },
       animation: {
@@ -89,7 +81,22 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
       },
       fontFamily: {
-        outfit: ['Outfit', 'sans-serif'],
+        outfit: ['Arial', 'Verdana', 'Helvetica Neue', 'Helvetica', 'sans-serif'],
+        sans: ['Arial', 'Verdana', 'Helvetica Neue', 'Helvetica', 'sans-serif'],
+      },
+      fontSize: {
+        base: ['1rem', { lineHeight: '1.6' }],
+        lg: ['1.125rem', { lineHeight: '1.6' }],
+        xl: ['1.25rem', { lineHeight: '1.4' }],
+        '2xl': ['1.5rem', { lineHeight: '1.3' }],
+        '3xl': ['1.875rem', { lineHeight: '1.2' }],
+        '4xl': ['2.25rem', { lineHeight: '1.2' }],
+      },
+      minHeight: {
+        'touch': '48px',
+      },
+      spacing: {
+        'touch': '48px',
       },
     },
   },

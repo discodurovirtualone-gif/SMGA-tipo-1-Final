@@ -101,7 +101,10 @@ const RegistrosReproductivos = () => {
   };
 
   return (
-    <FormLayout title="Registros Reproductivos">
+    <FormLayout
+      title="Datos Reproductivos"
+      helpText="Registre las fechas de parto, servicios, concepción y el toro utilizado en cada animal. Estos datos permiten calcular los índices reproductivos del rodeo."
+    >
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
         <div className="flex gap-2">
           <PdfReportButton

@@ -1,30 +1,47 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FormLayout from "@/components/FormLayout";
 import FieldInput from "@/components/FieldInput";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Pencil, Trash2, ArrowUpDown } from "lucide-react";
-import { useGanaderia, RegistroProductivo, calcWood, productivoToDb } from "@/context/GanaderiaContext";
+import { Pencil, Trash2, ArrowUpDown, Plus, X } from "lucide-react";
+import { useGanaderia, RegistroProductivo, ControlPunto, calcWood, productivoToDb } from "@/context/GanaderiaContext";
+import { useAjustes } from "@/context/AjustesContext";
 import { supabase } from "@/integrations/supabase/client";
 import PdfReportButton from "@/components/PdfReportButton";
 import DeleteAllButton from "@/components/DeleteAllButton";
 
-const DIAS = [30, 120, 210, 270];
+const DIAS_FIJOS = [30, 120, 210, 270];
 const POTENCIALES = [2000, 3000, 4000, 5000, 6000, 7000];
 
 type SortKey = "id_vaca" | "lc305_wood" | "porcentaje_grasa" | "porcentaje_proteina";
 
+const parseControles = (json?: string): ControlPunto[] => {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((c: any) => typeof c.dia === "number" && typeof c.produccion === "number");
+  } catch { return []; }
+};
+
 const RegistrosProductivos = () => {
   const { registrosBasicos, registrosProductivos, setRegistrosProductivos, deleteRegistro } = useGanaderia();
+  const { ajustes } = useAjustes();
+  const isInterp = ajustes.metodoWood305 === "interpolacion";
+
   const [editVacaId, setEditVacaId] = useState<string | null>(null);
   const [form, setForm] = useState<RegistroProductivo | null>(null);
   const [open, setOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
+
+  // Estado local para los controles de interpolación (N pesajes variables)
+  const [controles, setControles] = useState<{ dia: string; produccion: string }[]>([]);
 
   const update = (key: keyof RegistroProductivo) => (value: string) =>
     setForm(prev => prev ? { ...prev, [key]: value } : prev);
@@ -38,7 +55,7 @@ const RegistrosProductivos = () => {
     if (!potencial || potencial <= 0) return "";
     const reales = [parseFloat(reg1), parseFloat(reg2), parseFloat(reg3), parseFloat(reg4)];
     if (reales.some(isNaN)) return "";
-    const potAsignados = DIAS.map((dia, i) => {
+    const potAsignados = DIAS_FIJOS.map((dia, i) => {
       let closest = POTENCIALES[0];
       let minDiff = Math.abs(calcWood(POTENCIALES[0], dia) - reales[i]);
       for (const pot of POTENCIALES) {
@@ -59,16 +76,70 @@ const RegistrosProductivos = () => {
 
   const startEdit = (id_vaca: string, ejercicio: string) => {
     const existing = findProd(id_vaca);
-    setForm(existing || emptyProd(id_vaca, ejercicio));
+    const f = existing || emptyProd(id_vaca, ejercicio);
+    setForm(f);
     setEditVacaId(id_vaca);
+    // Inicializar controles desde JSON guardado, o desde los 4 campos fijos si hay datos
+    const parsed = parseControles(f.controles_adicionales);
+    if (parsed.length > 0) {
+      setControles(parsed.map(c => ({ dia: String(c.dia), produccion: String(c.produccion) })));
+    } else {
+      // Pre-poblar con los 4 campos fijos si tienen valor
+      const prefill = [
+        { dia: "30", produccion: f.reg_1_dia30 },
+        { dia: "120", produccion: f.reg_2_dia120 },
+        { dia: "210", produccion: f.reg_3_dia210 },
+        { dia: "270", produccion: f.reg_4_dia270 },
+      ].filter(c => c.produccion !== "");
+      setControles(prefill.length > 0 ? prefill : [{ dia: "", produccion: "" }]);
+    }
     setOpen(true);
   };
+
+  const addControl = () => setControles(prev => [...prev, { dia: "", produccion: "" }]);
+  const removeControl = (idx: number) => setControles(prev => prev.filter((_, i) => i !== idx));
+  const updateControl = (idx: number, field: "dia" | "produccion", value: string) =>
+    setControles(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
-    const lc305 = calcWood305(form.id_vaca, form.reg_1_dia30, form.reg_2_dia120, form.reg_3_dia210, form.reg_4_dia270);
-    const updatedForm: RegistroProductivo = { ...form, lc305_wood: lc305 };
+
+    let updatedForm: RegistroProductivo = { ...form };
+
+    if (isInterp) {
+      // Método interpolación: guardar controles en JSON
+      const validControles: ControlPunto[] = controles
+        .filter(c => c.dia !== "" && c.produccion !== "")
+        .map(c => ({ dia: parseInt(c.dia), produccion: parseFloat(c.produccion) }))
+        .filter(c => !isNaN(c.dia) && !isNaN(c.produccion) && c.dia > 0 && c.produccion > 0)
+        .sort((a, b) => a.dia - b.dia);
+
+      if (validControles.length === 0) {
+        toast.error("Ingrese al menos un control válido (día y producción)");
+        return;
+      }
+
+      // Sync los 4 campos fijos desde los controles más cercanos (compatibilidad)
+      const findNearest = (targetDia: number) => {
+        const sorted = [...validControles].sort((a, b) => Math.abs(a.dia - targetDia) - Math.abs(b.dia - targetDia));
+        return sorted[0] ? String(sorted[0].produccion) : "";
+      };
+      updatedForm = {
+        ...form,
+        reg_1_dia30: findNearest(30),
+        reg_2_dia120: findNearest(120),
+        reg_3_dia210: findNearest(210),
+        reg_4_dia270: findNearest(270),
+        controles_adicionales: JSON.stringify(validControles),
+        lc305_wood: "",
+      };
+    } else {
+      // Método Wood: calcular LC305 de los 4 campos fijos
+      const lc305 = calcWood305(form.id_vaca, form.reg_1_dia30, form.reg_2_dia120, form.reg_3_dia210, form.reg_4_dia270);
+      updatedForm = { ...form, lc305_wood: lc305, controles_adicionales: undefined };
+    }
+
     const existingIdx = registrosProductivos.findIndex(r => r.id_vaca === editVacaId);
     const dbRow = productivoToDb(updatedForm);
 
@@ -146,13 +217,91 @@ const RegistrosProductivos = () => {
                 <FieldInput label="Ejercicio" value={form.ejercicio} onChange={() => {}} />
                 <FieldInput label="Id Vaca" value={form.id_vaca} onChange={() => {}} />
               </div>
-              <p className="text-sm font-semibold text-muted-foreground pt-2">Registros de Control (ingrese producción real)</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <FieldInput label="Reg 1 Día 30" value={form.reg_1_dia30} onChange={update("reg_1_dia30")} type="number" highlighted />
-                <FieldInput label="Reg 2 Día 120" value={form.reg_2_dia120} onChange={update("reg_2_dia120")} type="number" highlighted />
-                <FieldInput label="Reg 3 Día 210" value={form.reg_3_dia210} onChange={update("reg_3_dia210")} type="number" highlighted />
-                <FieldInput label="Reg 4 Día 270" value={form.reg_4_dia270} onChange={update("reg_4_dia270")} type="number" highlighted />
-              </div>
+
+              {/* ---- SECCIÓN CONTROLES: según método activo ---- */}
+              {isInterp ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">Pesajes de Control — Interpolación y Proyección</p>
+                      <p className="text-xs text-muted-foreground">Ingrese el día de lactancia y la producción real (kg/día) de cada pesaje. Puede agregar hasta 20 pesajes en días variables.</p>
+                    </div>
+                    <Badge variant="outline" className="text-blue-700 border-blue-300 text-xs">
+                      Método: Interpolación
+                    </Badge>
+                  </div>
+
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs font-semibold text-muted-foreground px-1">
+                      <span>Día de lactancia</span>
+                      <span>Producción (kg/día)</span>
+                      <span className="w-8" />
+                    </div>
+                    {controles.map((c, idx) => (
+                      <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                        <Input
+                          type="number"
+                          placeholder="ej. 30"
+                          value={c.dia}
+                          onChange={e => updateControl(idx, "dia", e.target.value)}
+                          min={1}
+                          max={305}
+                          className="h-9 text-sm"
+                          data-testid={`input-control-dia-${idx}`}
+                        />
+                        <Input
+                          type="number"
+                          placeholder="ej. 25.5"
+                          value={c.produccion}
+                          onChange={e => updateControl(idx, "produccion", e.target.value)}
+                          min={0}
+                          step="0.1"
+                          className="h-9 text-sm"
+                          data-testid={`input-control-prod-${idx}`}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-destructive hover:text-destructive"
+                          onClick={() => removeControl(idx)}
+                          disabled={controles.length <= 1}
+                          data-testid={`button-remove-control-${idx}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    {controles.length < 20 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-1 w-full border-dashed"
+                        onClick={addControl}
+                        data-testid="button-add-control"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Agregar pesaje
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    El sistema ordenará los pesajes por día automáticamente al guardar.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-muted-foreground pt-2">Registros de Control — Método Wood (días fijos)</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <FieldInput label="Reg 1 Día 30" value={form.reg_1_dia30} onChange={update("reg_1_dia30")} type="number" highlighted />
+                    <FieldInput label="Reg 2 Día 120" value={form.reg_2_dia120} onChange={update("reg_2_dia120")} type="number" highlighted />
+                    <FieldInput label="Reg 3 Día 210" value={form.reg_3_dia210} onChange={update("reg_3_dia210")} type="number" highlighted />
+                    <FieldInput label="Reg 4 Día 270" value={form.reg_4_dia270} onChange={update("reg_4_dia270")} type="number" highlighted />
+                  </div>
+                </div>
+              )}
+
               <p className="text-sm font-semibold text-muted-foreground pt-2">Composición</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <FieldInput label="% Grasa" value={form.porcentaje_grasa} onChange={update("porcentaje_grasa")} type="number" highlighted />
@@ -166,10 +315,12 @@ const RegistrosProductivos = () => {
                 <FieldInput label="Lact 4" value={form.lact4} onChange={update("lact4")} type="number" highlighted />
                 <FieldInput label="Lact 5" value={form.lact5} onChange={update("lact5")} type="number" highlighted />
               </div>
-              <p className="text-xs text-muted-foreground">LC305 Wood se calcula automáticamente al guardar. Las lactancias se ingresan manualmente.</p>
+              <p className="text-xs text-muted-foreground">
+                {isInterp ? "El método de interpolación calculará P305 automáticamente desde los pesajes." : "LC305 Wood se calcula automáticamente al guardar."} Las lactancias se ingresan manualmente.
+              </p>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button type="submit">Guardar</Button>
+                <Button type="submit" data-testid="button-guardar-productivo">Guardar</Button>
               </div>
             </form>
           )}
@@ -182,11 +333,17 @@ const RegistrosProductivos = () => {
             <TableRow className="bg-muted/50">
               <TableHead>Ejercicio</TableHead>
               <SortHeader label="Id Vaca" field="id_vaca" />
-              <TableHead>R1 D30</TableHead>
-              <TableHead>R2 D120</TableHead>
-              <TableHead>R3 D210</TableHead>
-              <TableHead>R4 D270</TableHead>
-              <SortHeader label="LC305" field="lc305_wood" />
+              {isInterp ? (
+                <TableHead title="Pesajes registrados para interpolación"># Pesajes</TableHead>
+              ) : (
+                <>
+                  <TableHead>R1 D30</TableHead>
+                  <TableHead>R2 D120</TableHead>
+                  <TableHead>R3 D210</TableHead>
+                  <TableHead>R4 D270</TableHead>
+                  <SortHeader label="LC305" field="lc305_wood" />
+                </>
+              )}
               <SortHeader label="% Grasa" field="porcentaje_grasa" />
               <SortHeader label="% Prot" field="porcentaje_proteina" />
               <TableHead>L1</TableHead>
@@ -204,39 +361,63 @@ const RegistrosProductivos = () => {
                   No hay vacas registradas.
                 </TableCell>
               </TableRow>
-            ) : sorted.map(({ vaca, prod }, i) => (
-              <TableRow key={i}>
-                <TableCell>{vaca.ejercicio}</TableCell>
-                <TableCell className="font-medium">{vaca.id_vaca}</TableCell>
-                <TableCell>{prod?.reg_1_dia30 || "—"}</TableCell>
-                <TableCell>{prod?.reg_2_dia120 || "—"}</TableCell>
-                <TableCell>{prod?.reg_3_dia210 || "—"}</TableCell>
-                <TableCell>{prod?.reg_4_dia270 || "—"}</TableCell>
-                <TableCell className="font-bold">{prod?.lc305_wood || "—"}</TableCell>
-                <TableCell>{prod?.porcentaje_grasa || "—"}</TableCell>
-                <TableCell>{prod?.porcentaje_proteina || "—"}</TableCell>
-                <TableCell>{prod?.lact1 || "—"}</TableCell>
-                <TableCell>{prod?.lact2 || "—"}</TableCell>
-                <TableCell>{prod?.lact3 || "—"}</TableCell>
-                <TableCell>{prod?.lact4 || "—"}</TableCell>
-                <TableCell>{prod?.lact5 || "—"}</TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => startEdit(vaca.id_vaca, vaca.ejercicio)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {prod && (
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(vaca.id_vaca, vaca.ejercicio)} className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
+            ) : sorted.map(({ vaca, prod }, i) => {
+              const numControles = parseControles(prod?.controles_adicionales).length;
+              return (
+                <TableRow key={i}>
+                  <TableCell>{vaca.ejercicio}</TableCell>
+                  <TableCell className="font-medium">{vaca.id_vaca}</TableCell>
+                  {isInterp ? (
+                    <TableCell>
+                      {numControles > 0
+                        ? <span className="font-medium text-blue-700">{numControles} pesajes</span>
+                        : prod?.reg_1_dia30
+                          ? <span className="text-muted-foreground text-xs">4 fijos</span>
+                          : <span className="text-muted-foreground">—</span>
+                      }
+                    </TableCell>
+                  ) : (
+                    <>
+                      <TableCell>{prod?.reg_1_dia30 || "—"}</TableCell>
+                      <TableCell>{prod?.reg_2_dia120 || "—"}</TableCell>
+                      <TableCell>{prod?.reg_3_dia210 || "—"}</TableCell>
+                      <TableCell>{prod?.reg_4_dia270 || "—"}</TableCell>
+                      <TableCell className="font-bold">{prod?.lc305_wood || "—"}</TableCell>
+                    </>
+                  )}
+                  <TableCell>{prod?.porcentaje_grasa || "—"}</TableCell>
+                  <TableCell>{prod?.porcentaje_proteina || "—"}</TableCell>
+                  <TableCell>{prod?.lact1 || "—"}</TableCell>
+                  <TableCell>{prod?.lact2 || "—"}</TableCell>
+                  <TableCell>{prod?.lact3 || "—"}</TableCell>
+                  <TableCell>{prod?.lact4 || "—"}</TableCell>
+                  <TableCell>{prod?.lact5 || "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => startEdit(vaca.id_vaca, vaca.ejercicio)} data-testid={`button-edit-prod-${vaca.id_vaca}`}>
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                      {prod && (
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(vaca.id_vaca, vaca.ejercicio)} className="text-destructive hover:text-destructive" data-testid={`button-delete-prod-${vaca.id_vaca}`}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
+
+      {isInterp && (
+        <p className="text-xs text-muted-foreground mt-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
+          <strong>Método Interpolación activo:</strong> Ingrese todos los pesajes en días variables para cada vaca. El cálculo de P305 se realiza automáticamente en{" "}
+          <a href="/produccion-wood" className="underline font-medium">Producción Estimada a 305 Días</a>.
+          Para cambiar al método Wood estándar, vaya a <a href="/ajustes" className="underline font-medium">Ajustes del Sistema</a>.
+        </p>
+      )}
     </FormLayout>
   );
 };

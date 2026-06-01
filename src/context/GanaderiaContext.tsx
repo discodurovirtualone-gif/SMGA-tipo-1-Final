@@ -40,6 +40,11 @@ export interface RegistroBasico {
   potencial_vaca: string;
 }
 
+export interface ControlPunto {
+  dia: number;
+  produccion: number;
+}
+
 export interface RegistroProductivo {
   ejercicio: string;
   id_vaca: string;
@@ -55,6 +60,7 @@ export interface RegistroProductivo {
   lact3: string;
   lact4: string;
   lact5: string;
+  controles_adicionales?: string;
 }
 
 export interface Toro {
@@ -171,6 +177,7 @@ export const productivoToDb = (r: RegistroProductivo) => ({
   porcentaje_proteina: toNum(r.porcentaje_proteina),
   lact1: toNum(r.lact1), lact2: toNum(r.lact2), lact3: toNum(r.lact3),
   lact4: toNum(r.lact4), lact5: toNum(r.lact5),
+  controles_adicionales: r.controles_adicionales ?? null,
 });
 
 export const reproductivoToDb = (r: RegistroReproductivo) => ({
@@ -259,6 +266,7 @@ export const GanaderiaProvider = ({ children }: { children: ReactNode }) => {
             porcentaje_proteina: str(r.porcentaje_proteina),
             lact1: str(r.lact1), lact2: str(r.lact2), lact3: str(r.lact3),
             lact4: str(r.lact4), lact5: str(r.lact5),
+            controles_adicionales: r.controles_adicionales ?? undefined,
           })));
         }
         if (reproductivos?.length) {

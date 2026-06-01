@@ -3,13 +3,13 @@ import FormLayout from "@/components/FormLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useGanaderia, calcWood } from "@/context/GanaderiaContext";
+import { useGanaderia, calcWood, ControlPunto } from "@/context/GanaderiaContext";
 import { useAjustes } from "@/context/AjustesContext";
 import PdfReportButton from "@/components/PdfReportButton";
 
-const DIAS = [30, 120, 210, 270] as const;
+const DIAS_FIJOS = [30, 120, 210, 270] as const;
 
-// --- Cálculo auxiliar: integral numérica de la curva de Wood (día 1 a maxDay)
+// Integral numérica de la curva de Wood (día 1 a maxDay)
 const calcWoodAccum = (potencial: number, maxDay: number): number => {
   let total = 0;
   for (let d = 1; d <= maxDay; d++) {
@@ -18,28 +18,35 @@ const calcWoodAccum = (potencial: number, maxDay: number): number => {
   return total;
 };
 
-// --- Cálculo: producción acumulada Ya y último día n y producción diaria Yn
-const calcYaFromControls = (
-  reales: number[],
-  dias: readonly number[]
-): { ya: number; n: number; yn: number; lastIdx: number } => {
-  let lastIdx = -1;
-  for (let i = reales.length - 1; i >= 0; i--) {
-    if (reales[i] > 0) { lastIdx = i; break; }
-  }
-  if (lastIdx < 0) return { ya: 0, n: 0, yn: 0, lastIdx: -1 };
-
-  // Integración trapezoidal: (0,0) → (d30,P30) → (d120,P120) → ...
+// Producción acumulada por integración trapezoidal sobre controles (día, produccion)
+// Asume que en día 0 la producción es 0
+const calcYaTrapecio = (controles: ControlPunto[]): number => {
+  if (controles.length === 0) return 0;
+  const sorted = [...controles].sort((a, b) => a.dia - b.dia);
   let ya = 0;
-  let prevDay = 0;
+  let prevDia = 0;
   let prevProd = 0;
-  for (let i = 0; i <= lastIdx; i++) {
-    if (reales[i] <= 0) continue;
-    ya += ((prevProd + reales[i]) / 2) * (dias[i] - prevDay);
-    prevDay = dias[i];
-    prevProd = reales[i];
+  for (const c of sorted) {
+    if (c.produccion <= 0) continue;
+    ya += ((prevProd + c.produccion) / 2) * (c.dia - prevDia);
+    prevDia = c.dia;
+    prevProd = c.produccion;
   }
-  return { ya, n: dias[lastIdx], yn: reales[lastIdx], lastIdx };
+  return ya;
+};
+
+// Parsea el JSON de controles_adicionales; devuelve array vacío si falla
+const parseControles = (json?: string): ControlPunto[] => {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((c: any) => typeof c.dia === "number" && typeof c.produccion === "number" && c.produccion > 0)
+      .sort((a: ControlPunto, b: ControlPunto) => a.dia - b.dia);
+  } catch {
+    return [];
+  }
 };
 
 const ProduccionWood = () => {
@@ -83,8 +90,8 @@ const ProduccionWood = () => {
       : [0, 0, 0, 0];
     const hasReales = prod && reales.some(v => v > 0);
     const potAsignados = hasReales
-      ? DIAS.map((dia, i) => findClosestPotencial(reales[i], dia))
-      : DIAS.map(() => parseFloat(vaca.potencial_vaca) || 0);
+      ? DIAS_FIJOS.map((dia, i) => findClosestPotencial(reales[i], dia))
+      : DIAS_FIJOS.map(() => parseFloat(vaca.potencial_vaca) || 0);
     const potPromedio = potAsignados.reduce((s, v) => s + v, 0) / potAsignados.length;
     const potencialVaca = parseFloat(vaca.potencial_vaca) || 0;
     const edad = parseInt(vaca.edad) || 0;
@@ -94,27 +101,63 @@ const ProduccionWood = () => {
     return { id_vaca: vaca.id_vaca, potencialVaca, reales, hasReales, potAsignados, potPromedio, factor: factorResult.value, factorFound: factorResult.found, corregida };
   }), [registrosBasicos, registrosProductivos, POTENCIALES, factores]);
 
-  // ---- MÉTODO INTERPOLACIÓN ----
+  // ---- MÉTODO INTERPOLACIÓN Y PROYECCIÓN ----
+  // Algoritmo correcto según planilla:
+  //   FPR usa CURVA ESTÁNDAR: ya_std (Wood acum. → n), yn_std (Wood en día n), y305 (Wood acum. → 305)
+  //   P305 usa DATOS REALES:  ya_real (trapezoidal de pesajes reales), yn_real (último pesaje real)
   const rowsInterp = useMemo(() => registrosBasicos.map((vaca) => {
     const prod = registrosProductivos.find(p => p.id_vaca === vaca.id_vaca);
-    const reales = prod
-      ? [parseFloat(prod.reg_1_dia30) || 0, parseFloat(prod.reg_2_dia120) || 0, parseFloat(prod.reg_3_dia210) || 0, parseFloat(prod.reg_4_dia270) || 0]
-      : [0, 0, 0, 0];
-
     const potencialVaca = parseFloat(vaca.potencial_vaca) || 0;
-    const { ya, n, yn, lastIdx } = calcYaFromControls(reales, DIAS);
+
+    // Obtener controles: priorizar controles_adicionales (N pesajes), si no usar los 4 fijos
+    let controles: ControlPunto[] = parseControles(prod?.controles_adicionales);
+    if (controles.length === 0 && prod) {
+      const fijos: ControlPunto[] = [
+        { dia: 30, produccion: parseFloat(prod.reg_1_dia30) || 0 },
+        { dia: 120, produccion: parseFloat(prod.reg_2_dia120) || 0 },
+        { dia: 210, produccion: parseFloat(prod.reg_3_dia210) || 0 },
+        { dia: 270, produccion: parseFloat(prod.reg_4_dia270) || 0 },
+      ].filter(c => c.produccion > 0);
+      controles = fijos;
+    }
+
+    const numControles = controles.length;
+
+    if (numControles === 0 || potencialVaca <= 0) {
+      const edad = parseInt(vaca.edad) || 0;
+      const lactancia = parseInt(vaca.lactancia) || 0;
+      const factorResult = findFactor(vaca.raza, edad, lactancia);
+      return {
+        id_vaca: vaca.id_vaca, potencialVaca, numControles: 0, controles: [],
+        ya_std: 0, yn_std: 0, y305: 0, fpr: null,
+        ya_real: 0, n: 0, yn_real: 0, p305: null,
+        factor: factorResult.value, factorFound: factorResult.found, corregida: null,
+      };
+    }
+
+    const sorted = [...controles].sort((a, b) => a.dia - b.dia);
+    const n = sorted[sorted.length - 1].dia;
+    const yn_real = sorted[sorted.length - 1].produccion;
+
+    // Valores de la curva ESTÁNDAR para el FPR
+    const ya_std = potencialVaca > 0 ? calcWoodAccum(potencialVaca, n) : 0;
+    const yn_std = potencialVaca > 0 ? calcWood(potencialVaca, n) : 0;
     const y305 = potencialVaca > 0 ? calcWoodAccum(potencialVaca, 305) : 0;
 
+    // FPR basado en curva estándar
     let fpr: number | null = null;
-    let p305: number | null = null;
+    if (yn_std > 0 && 305 - n > 0 && y305 > ya_std) {
+      fpr = (y305 - ya_std) / (yn_std * (305 - n));
+    }
 
-    if (lastIdx >= 0 && yn > 0 && 305 - n > 0 && y305 > ya) {
-      fpr = (y305 - ya) / (yn * (305 - n));
-      p305 = ya + fpr * yn * (305 - n);
-    } else if (n >= 305) {
-      // lactancia ya completó 305 días — usar Ya directamente
-      p305 = ya;
-      fpr = 0;
+    // Producción real acumulada para P305
+    const ya_real = calcYaTrapecio(sorted);
+
+    let p305: number | null = null;
+    if (n >= 305) {
+      p305 = ya_real;
+    } else if (fpr !== null && yn_real > 0) {
+      p305 = ya_real + fpr * yn_real * (305 - n);
     }
 
     const edad = parseInt(vaca.edad) || 0;
@@ -122,7 +165,12 @@ const ProduccionWood = () => {
     const factorResult = findFactor(vaca.raza, edad, lactancia);
     const corregida = p305 !== null ? p305 * factorResult.value : null;
 
-    return { id_vaca: vaca.id_vaca, potencialVaca, reales, ya, n, yn, y305, fpr, p305, factor: factorResult.value, factorFound: factorResult.found, corregida };
+    return {
+      id_vaca: vaca.id_vaca, potencialVaca, numControles, controles: sorted,
+      ya_std, yn_std, y305, fpr,
+      ya_real, n, yn_real, p305,
+      factor: factorResult.value, factorFound: factorResult.found, corregida,
+    };
   }), [registrosBasicos, registrosProductivos, factores]);
 
   const isInterp = metodo === "interpolacion";
@@ -133,7 +181,6 @@ const ProduccionWood = () => {
       helpText="Calcula la producción de leche proyectada a 305 días de lactancia para cada vaca."
       variant="result"
     >
-      {/* Badge del método activo */}
       <div className="flex items-center gap-3 mb-4">
         <Badge variant={isInterp ? "default" : "secondary"} className="text-sm px-3 py-1">
           {isInterp ? "Método: Interpolación y Proyección" : "Método: Wood Estándar"}
@@ -144,7 +191,6 @@ const ProduccionWood = () => {
         </span>
       </div>
 
-      {/* Fórmula del método activo */}
       <Card className="mb-6">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
@@ -153,11 +199,24 @@ const ProduccionWood = () => {
         </CardHeader>
         <CardContent>
           {isInterp ? (
-            <div className="space-y-1 text-sm">
-              <p><code className="bg-muted px-2 py-0.5 rounded">Ya</code> = Producción acumulada hasta el día n (integración trapezoidal de controles reales)</p>
-              <p><code className="bg-muted px-2 py-0.5 rounded">Y305</code> = Producción Wood acumulada hasta día 305 (referencia)</p>
-              <p><code className="bg-muted px-2 py-0.5 rounded">FPR = (Y305 − Ya) / (Yn × (305 − n))</code></p>
-              <p><code className="bg-muted px-2 py-0.5 rounded">P305 = Ya + FPR × Yn × (305 − n)</code></p>
+            <div className="space-y-2 text-sm">
+              <p className="font-medium text-muted-foreground">Factor de Proyección (usa curva estándar Wood):</p>
+              <code className="block bg-muted px-3 py-1.5 rounded">
+                Ya_std = Σ Wood(potencial, d) para d=1…n &nbsp;|&nbsp; Yn_std = Wood(potencial, n)
+              </code>
+              <code className="block bg-muted px-3 py-1.5 rounded">
+                FPR = (Y305 − Ya_std) / (Yn_std × (305 − n))
+              </code>
+              <p className="font-medium text-muted-foreground mt-2">Proyección P305 (usa producción real):</p>
+              <code className="block bg-muted px-3 py-1.5 rounded">
+                Ya_real = integración trapezoidal de pesajes reales hasta día n
+              </code>
+              <code className="block bg-muted px-3 py-1.5 rounded">
+                P305 = Ya_real + FPR × Yn_real × (305 − n)
+              </code>
+              <p className="text-xs text-muted-foreground mt-1">
+                Los pesajes se ingresan en <a href="/productivos" className="underline">Datos Productivos</a> — soporte para hasta 20 controles en días variables.
+              </p>
             </div>
           ) : (
             <code className="text-sm bg-muted px-2 py-1 rounded">
@@ -171,16 +230,19 @@ const ProduccionWood = () => {
         <PdfReportButton
           title={`Producción 305 días — ${isInterp ? "Interpolación" : "Wood"}`}
           headers={isInterp
-            ? ["Id Vaca", "Ya (kg)", "Día n", "Yn (kg/d)", "Y305 ref", "FPR", "P305", "Factor", "P305 Corr."]
+            ? ["Id Vaca", "# Pesajes", "Ya_std (kg)", "Yn_std", "Y305 ref", "FPR", "Ya_real (kg)", "Día n", "Yn_real", "P305 (kg)", "Factor", "P305 Corr."]
             : ["Id Vaca", "Potencial", "Prom. Pot.", "Factor", "Wood305"]}
           rows={isInterp
             ? rowsInterp.map(r => [
                 r.id_vaca,
-                r.ya > 0 ? r.ya.toFixed(0) : "—",
-                r.n > 0 ? String(r.n) : "—",
-                r.yn > 0 ? r.yn.toFixed(1) : "—",
+                String(r.numControles),
+                r.ya_std > 0 ? r.ya_std.toFixed(0) : "—",
+                r.yn_std > 0 ? r.yn_std.toFixed(2) : "—",
                 r.y305 > 0 ? r.y305.toFixed(0) : "—",
-                r.fpr !== null ? r.fpr.toFixed(3) : "—",
+                r.fpr !== null ? r.fpr.toFixed(4) : "—",
+                r.ya_real > 0 ? r.ya_real.toFixed(0) : "—",
+                r.n > 0 ? String(r.n) : "—",
+                r.yn_real > 0 ? r.yn_real.toFixed(1) : "—",
                 r.p305 !== null ? r.p305.toFixed(0) : "—",
                 r.factor.toFixed(3),
                 r.corregida !== null ? r.corregida.toFixed(0) : "—",
@@ -251,16 +313,15 @@ const ProduccionWood = () => {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead>Id Vaca</TableHead>
-                <TableHead title="Producción diaria al día n">Real D30</TableHead>
-                <TableHead>Real D120</TableHead>
-                <TableHead>Real D210</TableHead>
-                <TableHead>Real D270</TableHead>
-                <TableHead title="Producción acumulada hasta el día n (integración trapezoidal)">Ya (kg acum.)</TableHead>
-                <TableHead title="Último día con control real">Día n</TableHead>
-                <TableHead title="Producción diaria al día n">Yn (kg/día)</TableHead>
-                <TableHead title="Producción Wood acumulada a 305 días (referencia)">Y305 ref (kg)</TableHead>
-                <TableHead title="Factor de proyección">FPR</TableHead>
-                <TableHead title="Producción estimada a 305 días sin corrección">P305 (kg)</TableHead>
+                <TableHead title="Cantidad de pesajes ingresados"># Pesajes</TableHead>
+                <TableHead title="Acumulado curva estándar Wood hasta día n — usado en FPR">Ya_std (kg)</TableHead>
+                <TableHead title="Curva estándar Wood en día n — usado en FPR">Yn_std (kg/d)</TableHead>
+                <TableHead title="Curva estándar Wood acumulada a 305 días">Y305 ref (kg)</TableHead>
+                <TableHead title="Factor de Proyección: (Y305 - Ya_std) / (Yn_std × (305-n))">FPR</TableHead>
+                <TableHead title="Producción real acumulada por integración trapezoidal hasta día n">Ya_real (kg)</TableHead>
+                <TableHead title="Día del último pesaje real">Día n</TableHead>
+                <TableHead title="Producción real en el último día de pesaje">Yn_real (kg/d)</TableHead>
+                <TableHead title="Ya_real + FPR × Yn_real × (305-n)">P305 (kg)</TableHead>
                 <TableHead>Factor</TableHead>
                 <TableHead className="font-bold text-primary">P305 Corr. (kg)</TableHead>
               </TableRow>
@@ -268,25 +329,29 @@ const ProduccionWood = () => {
             <TableBody>
               {rowsInterp.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                     No hay vacas registradas. Ingrese vacas en Datos de Animales primero.
                   </TableCell>
                 </TableRow>
               ) : rowsInterp.map((r) => (
                 <TableRow key={r.id_vaca}>
                   <TableCell className="font-medium">{r.id_vaca}</TableCell>
-                  {r.reales.map((v, j) => (
-                    <TableCell key={j}>{v > 0 ? v.toFixed(1) : "—"}</TableCell>
-                  ))}
-                  <TableCell className="font-medium">
-                    {r.ya > 0 ? r.ya.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"}
+                  <TableCell className="text-center">
+                    <span className={r.numControles > 0 ? "font-medium text-blue-700" : "text-muted-foreground"}>
+                      {r.numControles > 0 ? r.numControles : "—"}
+                    </span>
                   </TableCell>
-                  <TableCell>{r.n > 0 ? r.n : "—"}</TableCell>
-                  <TableCell>{r.yn > 0 ? r.yn.toFixed(1) : "—"}</TableCell>
+                  <TableCell>{r.ya_std > 0 ? r.ya_std.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"}</TableCell>
+                  <TableCell>{r.yn_std > 0 ? r.yn_std.toFixed(2) : "—"}</TableCell>
                   <TableCell>{r.y305 > 0 ? r.y305.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"}</TableCell>
                   <TableCell className={r.fpr !== null ? "text-blue-700 font-medium" : ""}>
-                    {r.fpr !== null ? r.fpr.toFixed(3) : "—"}
+                    {r.fpr !== null ? r.fpr.toFixed(4) : "—"}
                   </TableCell>
+                  <TableCell className="font-medium">
+                    {r.ya_real > 0 ? r.ya_real.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"}
+                  </TableCell>
+                  <TableCell>{r.n > 0 ? r.n : "—"}</TableCell>
+                  <TableCell>{r.yn_real > 0 ? r.yn_real.toFixed(1) : "—"}</TableCell>
                   <TableCell className="font-bold">
                     {r.p305 !== null ? r.p305.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—"}
                   </TableCell>

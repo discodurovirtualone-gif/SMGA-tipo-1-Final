@@ -19,6 +19,7 @@ import ProduccionWood from "./pages/ProduccionWood.tsx";
 import IndicadoresReproductivos from "./pages/IndicadoresReproductivos.tsx";
 import ValorCria from "./pages/ValorCria.tsx";
 import Ajustes from "./pages/Ajustes.tsx";
+import ComparacionNacional from "./pages/ComparacionNacional.tsx";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/valor-cria" element={<ValorCria />} />
               <Route path="/tablero-final" element={<TableroFinal />} />
               <Route path="/ajustes" element={<Ajustes />} />
+              <Route path="/comparacion-nacional" element={<ComparacionNacional />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

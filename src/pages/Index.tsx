@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import {
   Milk, ClipboardList, NotebookPen, FileBarChart, BarChart3,
   LayoutDashboard, BookOpen, Calculator, Heart, Dna, Settings,
-  Upload, FileDown
+  Upload, FileDown, Globe
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import BulkUpload from "@/components/BulkUpload";
@@ -80,6 +80,13 @@ const resultItems = [
     description: "Calcule el valor genético de sus animales y su progenie esperada.",
     icon: Dna,
     path: "/valor-cria",
+  },
+  {
+    title: "Comparación con Promedios Nacionales",
+    subtitle: "Primíparas y multíparas vs. referencia nacional",
+    description: "Compare los promedios calculados del rodeo con valores de referencia nacionales para producción, reproducción y salud.",
+    icon: Globe,
+    path: "/comparacion-nacional",
   },
 ];
 

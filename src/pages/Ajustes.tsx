@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useAjustes } from "@/context/AjustesContext";
+import { Plus, Pencil, Trash2, CheckCircle2, TrendingUp } from "lucide-react";
+import { useAjustes, MetodoWood305 } from "@/context/AjustesContext";
 import { useGanaderia, FactorCorreccion } from "@/context/GanaderiaContext";
 import FieldInput from "@/components/FieldInput";
 import FieldSelect from "@/components/FieldSelect";
@@ -27,8 +27,25 @@ const emptyFactor: FactorCorreccion = { raza: "", nivel_produccion: "", edad: 0,
 const EDITABLE_INPUT = "h-8 text-sm bg-field-highlight border-accent";
 const NON_EDITABLE_INPUT = "h-8 text-sm bg-white";
 
+const METODOS: { value: MetodoWood305; label: string; subtitle: string; formula: string; icon: React.FC<{ className?: string }> }[] = [
+  {
+    value: "actual",
+    label: "Método Actual (Wood)",
+    subtitle: "Curva de Wood estándar con potencial asignado",
+    formula: "Prod. Pot. = (potencial × 0.00318) × día^0.1027 × e^(−0.003×día)",
+    icon: TrendingUp,
+  },
+  {
+    value: "interpolacion",
+    label: "Interpolación y Proyección",
+    subtitle: "Proyecta la producción real al día 305 usando factor de proyección",
+    formula: "FPR = (Y305 − Ya) / (Yn × (305 − n))  →  P305 = Ya + FPR × Yn × (305 − n)",
+    icon: TrendingUp,
+  },
+];
+
 const Ajustes = () => {
-  const { ajustes, setHeredabilidad, setRepetibilidad, setRangoPotenciales, potencialesAuto } = useAjustes();
+  const { ajustes, setHeredabilidad, setRepetibilidad, setRangoPotenciales, setMetodoWood305, potencialesAuto } = useAjustes();
   const { factores, setFactores } = useGanaderia();
 
   const [customRange, setCustomRange] = useState(ajustes.rangoPotenciales.join(", "));
@@ -70,8 +87,52 @@ const Ajustes = () => {
   };
 
   return (
-    <FormLayout title="Ajustes">
+    <FormLayout
+      title="Ajustes del Sistema"
+      helpText="Configure los parámetros que se usan en todos los cálculos del sistema."
+    >
       <div className="space-y-6">
+
+        {/* Método de cálculo Wood 305 */}
+        <Card className="border-2 border-primary/20">
+          <CardHeader className="bg-accent/50 pb-2">
+            <CardTitle className="text-lg font-bold">Método de Cálculo — Producción a 305 días</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Elija el método que se usará para estimar la producción de leche a 305 días de lactancia.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {METODOS.map((m) => {
+                const selected = ajustes.metodoWood305 === m.value;
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => { setMetodoWood305(m.value); toast.success(`Método cambiado: ${m.label}`); }}
+                    className={`text-left rounded-xl border-2 p-4 transition-all duration-150 focus:outline-none focus:ring-4 focus:ring-primary/30
+                      ${selected
+                        ? "border-primary bg-primary/10 shadow-md"
+                        : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                      }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 shrink-0 rounded-full p-1 ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className={`font-bold text-base ${selected ? "text-primary" : "text-foreground"}`}>{m.label}</p>
+                        <p className="text-sm text-muted-foreground">{m.subtitle}</p>
+                        <code className="text-xs bg-muted px-2 py-1 rounded block mt-1 leading-relaxed">{m.formula}</code>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Rango de Potenciales */}
         <Card className="border-2 border-primary/20">
           <CardHeader className="bg-accent/50 pb-2">

@@ -1,11 +1,14 @@
 import { createContext, useContext, useState, ReactNode, useMemo } from "react";
 import { useGanaderia, defaultFactores, FactorCorreccion } from "./GanaderiaContext";
 
+export type MetodoWood305 = "actual" | "interpolacion";
+
 export interface AjustesState {
   heredabilidad: string;
   repetibilidad: string;
   rangoPotenciales: number[];
   factores: FactorCorreccion[];
+  metodoWood305: MetodoWood305;
 }
 
 interface AjustesContextType {
@@ -13,6 +16,7 @@ interface AjustesContextType {
   setHeredabilidad: (v: string) => void;
   setRepetibilidad: (v: string) => void;
   setRangoPotenciales: (v: number[]) => void;
+  setMetodoWood305: (v: MetodoWood305) => void;
   potencialesAuto: number[];
 }
 
@@ -23,6 +27,7 @@ export const AjustesProvider = ({ children }: { children: ReactNode }) => {
   const [heredabilidad, setHeredabilidad] = useState("0.25");
   const [repetibilidad, setRepetibilidad] = useState("0.5");
   const [rangoPotencialesOverride, setRangoPotenciales] = useState<number[]>([]);
+  const [metodoWood305, setMetodoWood305] = useState<MetodoWood305>("actual");
 
   // Auto-generate potentials range based on average potencial_vaca
   const potencialesAuto = useMemo(() => {
@@ -42,6 +47,7 @@ export const AjustesProvider = ({ children }: { children: ReactNode }) => {
     repetibilidad,
     rangoPotenciales,
     factores,
+    metodoWood305,
   };
 
   return (
@@ -50,6 +56,7 @@ export const AjustesProvider = ({ children }: { children: ReactNode }) => {
       setHeredabilidad,
       setRepetibilidad,
       setRangoPotenciales,
+      setMetodoWood305,
       potencialesAuto,
     }}>
       {children}

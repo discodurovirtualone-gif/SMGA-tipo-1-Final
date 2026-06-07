@@ -2,7 +2,7 @@
 
 A cattle farm genetic improvement management system built with React, Vite, TypeScript, and Supabase. This is **SMGA Tipo 2**, a redesigned accessible version of the original SMGA system.
 
-**GitHub repository:** https://github.com/discodurovirtualone-gif/smga-tipo-2
+**GitHub repository:** https://github.com/discodurovirtualone-gif/SMGA-tipo-1-Final
 
 ## Accessibility Features (NIH/NLM Guidelines)
 - **Typography**: Arial/Verdana system fonts, 18px base font size for readability

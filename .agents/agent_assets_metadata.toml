@@ -18,3 +18,9 @@ id = "7Km74P2eeMU3H-4MVeFTZ"
 uri = "file://generated-docs/mapeo-requerimientos.pdf"
 type = "pdf"
 title = "Mapeo de Requerimientos Funcionales y No Funcionales — SMGA"
+
+[[outputs]]
+id = "3iaXbENWukTkDgwT8p0Gr"
+uri = "file://generated-docs/diagrama-de-clases.pdf"
+type = "pdf"
+title = "Diagrama de Clases UML — SMGA"

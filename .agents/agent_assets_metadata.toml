@@ -6,3 +6,15 @@ id = "lxOWb_VAsVdzJHAflwtmI"
 uri = "file://smga-proyecto.zip"
 type = "unspecified"
 title = "SMGA - Código fuente completo (0.3 MB)"
+
+[[outputs]]
+id = "qAf1rZM5TyGgC31iOX1pM"
+uri = "file://generated-docs/casos-de-uso-uml.pdf"
+type = "pdf"
+title = "Casos de Uso y Diagramas UML — SMGA"
+
+[[outputs]]
+id = "7Km74P2eeMU3H-4MVeFTZ"
+uri = "file://generated-docs/mapeo-requerimientos.pdf"
+type = "pdf"
+title = "Mapeo de Requerimientos Funcionales y No Funcionales — SMGA"

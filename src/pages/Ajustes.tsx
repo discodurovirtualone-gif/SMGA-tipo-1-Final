@@ -27,20 +27,27 @@ const emptyFactor: FactorCorreccion = { raza: "", nivel_produccion: "", edad: 0,
 const EDITABLE_INPUT = "h-8 text-sm bg-field-highlight border-accent";
 const NON_EDITABLE_INPUT = "h-8 text-sm bg-white";
 
-const METODOS: { value: MetodoWood305; label: string; subtitle: string; formula: string; icon: React.FC<{ className?: string }> }[] = [
+const METODOS: { value: MetodoWood305; label: string; subtitle: string; formula: string; badge: string }[] = [
+  {
+    value: "simplificado",
+    label: "Método Simplificado (Wood)",
+    subtitle: "Curva de Wood estándar con parámetros fijos. Asigna el potencial más cercano de una lista discreta según cada pesaje.",
+    formula: "Y(d) = (pot × 0.00318) × d^0.1027 × e^(−0.003×d)  →  LC305 = promedio de potenciales asignados",
+    badge: "Rápido",
+  },
   {
     value: "actual",
-    label: "Método Actual (Wood)",
-    subtitle: "Curva de Wood estándar con potencial asignado",
-    formula: "Prod. Pot. = (potencial × 0.00318) × día^0.1027 × e^(−0.003×día)",
-    icon: TrendingUp,
+    label: "Método Actual (Wood) — Levenberg-Marquardt",
+    subtitle: "Ajusta los parámetros a,b,c de la curva de Wood a los pesajes reales. Mayor precisión con 3 o 4 controles.",
+    formula: "Y(d) = a·d^b·e^(−c·d)  →  LC305 = ∫₁³⁰⁵ Y(d)dd  (trapecio)  |  R² como indicador de confianza",
+    badge: "Recomendado",
   },
   {
     value: "interpolacion",
     label: "Interpolación y Proyección",
-    subtitle: "Proyecta la producción real al día 305 usando factor de proyección",
+    subtitle: "Proyecta la producción real al día 305 usando N pesajes en días variables y un factor de proyección.",
     formula: "FPR = (Y305 − Ya) / (Yn × (305 − n))  →  P305 = Ya + FPR × Yn × (305 − n)",
-    icon: TrendingUp,
+    badge: "N pesajes",
   },
 ];
 
@@ -102,7 +109,7 @@ const Ajustes = () => {
             <p className="text-sm text-muted-foreground">
               Elija el método que se usará para estimar la producción de leche a 305 días de lactancia.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {METODOS.map((m) => {
                 const selected = ajustes.metodoWood305 === m.value;
                 return (
@@ -115,15 +122,24 @@ const Ajustes = () => {
                         ? "border-primary bg-primary/10 shadow-md"
                         : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
                       }`}
+                    data-testid={`button-metodo-${m.value}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className={`mt-0.5 shrink-0 rounded-full p-1 ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                         <CheckCircle2 className="h-4 w-4" />
                       </div>
-                      <div className="space-y-1">
-                        <p className={`font-bold text-base ${selected ? "text-primary" : "text-foreground"}`}>{m.label}</p>
-                        <p className="text-sm text-muted-foreground">{m.subtitle}</p>
-                        <code className="text-xs bg-muted px-2 py-1 rounded block mt-1 leading-relaxed">{m.formula}</code>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className={`font-bold text-sm ${selected ? "text-primary" : "text-foreground"}`}>{m.label}</p>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0
+                            ${m.badge === 'Recomendado' ? 'bg-green-100 text-green-700' :
+                              m.badge === 'Rápido' ? 'bg-blue-100 text-blue-700' :
+                              'bg-purple-100 text-purple-700'}`}>
+                            {m.badge}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{m.subtitle}</p>
+                        <code className="text-[10px] bg-muted px-2 py-1 rounded block mt-1 leading-relaxed break-all">{m.formula}</code>
                       </div>
                     </div>
                   </button>

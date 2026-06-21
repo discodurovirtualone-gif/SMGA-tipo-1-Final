@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useMemo } from "react";
 import { useGanaderia, defaultFactores, FactorCorreccion } from "./GanaderiaContext";
 
-export type MetodoWood305 = "actual" | "interpolacion";
+export type MetodoWood305 = "simplificado" | "actual" | "interpolacion";
 
 export interface AjustesState {
   heredabilidad: string;

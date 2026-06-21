@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Pencil, Trash2, ArrowUpDown, Plus, X } from "lucide-react";
-import { useGanaderia, RegistroProductivo, ControlPunto, productivoToDb } from "@/context/GanaderiaContext";
+import { useGanaderia, RegistroProductivo, ControlPunto, calcWood, productivoToDb } from "@/context/GanaderiaContext";
 import { useAjustes } from "@/context/AjustesContext";
 import { ajustarWoodLM, WoodFitResult } from "@/lib/woodLM";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ import PdfReportButton from "@/components/PdfReportButton";
 import DeleteAllButton from "@/components/DeleteAllButton";
 
 const DIAS_FIJOS = [30, 120, 210, 270];
+const POTENCIALES = [2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
 
 type SortKey = "id_vaca" | "lc305_wood" | "porcentaje_grasa" | "porcentaje_proteina";
 
@@ -31,7 +32,10 @@ const parseControles = (json?: string): ControlPunto[] => {
 const RegistrosProductivos = () => {
   const { registrosBasicos, registrosProductivos, setRegistrosProductivos, deleteRegistro } = useGanaderia();
   const { ajustes } = useAjustes();
-  const isInterp = ajustes.metodoWood305 === "interpolacion";
+  const metodo = ajustes.metodoWood305;
+  const isInterp = metodo === "interpolacion";
+  const isLM = metodo === "actual";
+  const isSimple = metodo === "simplificado";
 
   const [editVacaId, setEditVacaId] = useState<string | null>(null);
   const [form, setForm] = useState<RegistroProductivo | null>(null);
@@ -48,8 +52,8 @@ const RegistrosProductivos = () => {
     setForm(prev => {
       if (!prev) return prev;
       const next = { ...prev, [key]: value };
-      // Recalcular preview Wood en tiempo real al cambiar los 4 campos
-      if (!isInterp && ["reg_1_dia30","reg_2_dia120","reg_3_dia210","reg_4_dia270"].includes(key)) {
+      // Preview en tiempo real solo para Método Actual (L-M)
+      if (isLM && ["reg_1_dia30","reg_2_dia120","reg_3_dia210","reg_4_dia270"].includes(key)) {
         recalcWoodPreview(next);
       }
       return next;
@@ -75,7 +79,30 @@ const RegistrosProductivos = () => {
   };
 
   /**
-   * Calcula LC305 usando Levenberg-Marquardt (Método Actual Wood).
+   * Método Simplificado (Wood): asigna el potencial discreto más cercano
+   * por cada pesaje y promedia los 4 potenciales asignados.
+   */
+  const calcWood305Simplificado = (f: RegistroProductivo): string => {
+    const reales = [
+      parseFloat(f.reg_1_dia30), parseFloat(f.reg_2_dia120),
+      parseFloat(f.reg_3_dia210), parseFloat(f.reg_4_dia270),
+    ].filter(v => !isNaN(v) && v > 0);
+    if (reales.length === 0) return "";
+    const dias = DIAS_FIJOS.slice(0, reales.length);
+    const pots = reales.map((real, i) => {
+      let closest = POTENCIALES[0];
+      let minDiff = Math.abs(calcWood(POTENCIALES[0], dias[i]) - real);
+      for (const pot of POTENCIALES) {
+        const diff = Math.abs(calcWood(pot, dias[i]) - real);
+        if (diff < minDiff) { minDiff = diff; closest = pot; }
+      }
+      return closest;
+    });
+    return (pots.reduce((s, v) => s + v, 0) / pots.length).toFixed(0);
+  };
+
+  /**
+   * Método Actual (Wood) — Levenberg-Marquardt.
    * Retorna el valor como string redondeado o "" si no hay datos suficientes.
    */
   const calcWood305LM = (f: RegistroProductivo): string => {
@@ -107,8 +134,8 @@ const RegistrosProductivos = () => {
     setForm(f);
     setEditVacaId(id_vaca);
     setWoodPreview(null);
-    // Inicializar preview si ya hay datos Wood
-    if (!isInterp) recalcWoodPreview(f);
+    // Inicializar preview solo para Método Actual (L-M)
+    if (isLM) recalcWoodPreview(f);
     // Inicializar controles desde JSON guardado, o desde los 4 campos fijos si hay datos
     const parsed = parseControles(f.controles_adicionales);
     if (parsed.length > 0) {
@@ -163,9 +190,13 @@ const RegistrosProductivos = () => {
         controles_adicionales: JSON.stringify(validControles),
         lc305_wood: "",
       };
-    } else {
-      // Método Actual (Wood) con Levenberg-Marquardt
+    } else if (isLM) {
+      // Método Actual (Wood) — Levenberg-Marquardt
       const lc305 = calcWood305LM(form);
+      updatedForm = { ...form, lc305_wood: lc305, controles_adicionales: undefined };
+    } else {
+      // Método Simplificado (Wood) — lookup discreto original
+      const lc305 = calcWood305Simplificado(form);
       updatedForm = { ...form, lc305_wood: lc305, controles_adicionales: undefined };
     }
 
@@ -319,16 +350,17 @@ const RegistrosProductivos = () => {
                     El sistema ordenará los pesajes por día automáticamente al guardar.
                   </p>
                 </div>
-              ) : (
+              ) : isLM ? (
+                /* ── Método Actual (Wood) — Levenberg-Marquardt ── */
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-muted-foreground pt-2">Registros de Control — Método Actual Wood (días fijos)</p>
                     <Badge variant="outline" className="text-green-700 border-green-300 text-xs">
-                      Ajuste Levenberg-Marquardt
+                      Levenberg-Marquardt
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Ingrese la producción real (kg/día) de cada control. El sistema ajusta la curva Y(d)=a·d^b·e^(-c·d) a los datos y calcula LC305 por integración trapezoidal.
+                    Ingrese la producción real (kg/día). El sistema ajusta la curva Y(d)=a·d^b·e^(−c·d) a los datos reales y calcula LC305 por integración trapezoidal (D1→D305).
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <FieldInput label="Reg 1 Día 30 (kg/día)" value={form.reg_1_dia30} onChange={update("reg_1_dia30")} type="number" highlighted />
@@ -336,31 +368,24 @@ const RegistrosProductivos = () => {
                     <FieldInput label="Reg 3 Día 210 (kg/día)" value={form.reg_3_dia210} onChange={update("reg_3_dia210")} type="number" highlighted />
                     <FieldInput label="Reg 4 Día 270 (kg/día)" value={form.reg_4_dia270} onChange={update("reg_4_dia270")} type="number" highlighted />
                   </div>
-
                   {/* Panel de preview L-M en tiempo real */}
                   {woodPreview && (
                     <div className="rounded-lg border bg-green-50 border-green-200 p-3 space-y-2">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <span className="text-xs font-semibold text-green-800">Ajuste Wood en tiempo real</span>
                         <div className="flex gap-2 flex-wrap">
-                          <Badge
-                            className={
-                              woodPreview.confianza === 'Alta'
-                                ? 'bg-green-600 text-white text-xs'
-                                : woodPreview.confianza === 'Media'
-                                ? 'bg-amber-500 text-white text-xs'
-                                : 'bg-gray-400 text-white text-xs'
-                            }
-                          >
-                            {woodPreview.confianza}
-                          </Badge>
+                          <Badge className={
+                            woodPreview.confianza === 'Alta' ? 'bg-green-600 text-white text-xs' :
+                            woodPreview.confianza === 'Media' ? 'bg-amber-500 text-white text-xs' :
+                            'bg-gray-400 text-white text-xs'
+                          }>{woodPreview.confianza}</Badge>
                           {woodPreview.nPuntos >= 2 && (
                             <Badge variant="outline" className="text-xs text-blue-700 border-blue-300">
                               R² = {woodPreview.r2.toFixed(3)}
                             </Badge>
                           )}
                           <Badge variant="outline" className="text-xs text-muted-foreground">
-                            {woodPreview.nPuntos} pesaje{woodPreview.nPuntos !== 1 ? 's' : ''} · {woodPreview.parametrosLibres} param. ajustado{woodPreview.parametrosLibres !== 1 ? 's' : ''}
+                            {woodPreview.nPuntos} pesaje{woodPreview.nPuntos !== 1 ? 's' : ''} · {woodPreview.parametrosLibres} param. libre{woodPreview.parametrosLibres !== 1 ? 's' : ''}
                           </Badge>
                         </div>
                       </div>
@@ -374,28 +399,44 @@ const RegistrosProductivos = () => {
                           <div className="text-muted-foreground">Día pico</div>
                         </div>
                         <div className="bg-white rounded border border-green-100 p-2 text-center">
-                          <div className="font-mono text-xs text-gray-600">
-                            a={woodPreview.a.toFixed(3)}
-                          </div>
-                          <div className="font-mono text-xs text-gray-600">
-                            b={woodPreview.b.toFixed(4)}
-                          </div>
+                          <div className="font-mono text-xs text-gray-600">a={woodPreview.a.toFixed(3)}</div>
+                          <div className="font-mono text-xs text-gray-600">b={woodPreview.b.toFixed(4)}</div>
                           <div className="text-muted-foreground text-[10px]">Parámetros</div>
                         </div>
                         <div className="bg-white rounded border border-green-100 p-2 text-center">
-                          <div className="font-mono text-xs text-gray-600">
-                            c={woodPreview.c.toFixed(5)}
-                          </div>
+                          <div className="font-mono text-xs text-gray-600">c={woodPreview.c.toFixed(5)}</div>
                           <div className="text-muted-foreground text-[10px]">Persistencia</div>
                         </div>
                       </div>
                       {woodPreview.confianza === 'Estimación aproximada' && (
                         <p className="text-[10px] text-amber-700">
-                          Con 1 solo pesaje, b y c se fijan en valores estándar (b=0.1027, c=0.003). Agregue más controles para mayor precisión.
+                          Con 1 pesaje, b y c se fijan en valores estándar. Más controles mejoran la precisión.
                         </p>
                       )}
                     </div>
                   )}
+                </div>
+              ) : (
+                /* ── Método Simplificado (Wood) — lookup discreto ── */
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-muted-foreground pt-2">Registros de Control — Método Simplificado Wood (días fijos)</p>
+                    <Badge variant="outline" className="text-blue-700 border-blue-300 text-xs">
+                      Potencial discreto
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ingrese la producción real (kg/día). El sistema asigna el potencial más cercano de la lista discreta por cada pesaje y promedia el resultado como LC305.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <FieldInput label="Reg 1 Día 30 (kg/día)" value={form.reg_1_dia30} onChange={update("reg_1_dia30")} type="number" highlighted />
+                    <FieldInput label="Reg 2 Día 120 (kg/día)" value={form.reg_2_dia120} onChange={update("reg_2_dia120")} type="number" highlighted />
+                    <FieldInput label="Reg 3 Día 210 (kg/día)" value={form.reg_3_dia210} onChange={update("reg_3_dia210")} type="number" highlighted />
+                    <FieldInput label="Reg 4 Día 270 (kg/día)" value={form.reg_4_dia270} onChange={update("reg_4_dia270")} type="number" highlighted />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                    Potenciales disponibles: {POTENCIALES.map(p => p.toLocaleString()).join(', ')} litros. LC305 Wood se calcula automáticamente al guardar.
+                  </p>
                 </div>
               )}
 
@@ -413,7 +454,12 @@ const RegistrosProductivos = () => {
                 <FieldInput label="Lact 5" value={form.lact5} onChange={update("lact5")} type="number" highlighted />
               </div>
               <p className="text-xs text-muted-foreground">
-                {isInterp ? "El método de interpolación calculará P305 automáticamente desde los pesajes." : "LC305 Wood se calcula automáticamente al guardar."} Las lactancias se ingresan manualmente.
+                {isInterp
+                  ? "El método de interpolación calculará P305 automáticamente desde los pesajes."
+                  : isLM
+                  ? "LC305 se calcula ajustando los parámetros Wood con Levenberg-Marquardt al guardar."
+                  : "LC305 se asigna por potencial discreto más cercano al guardar."}
+                {" "}Las lactancias se ingresan manualmente.
               </p>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

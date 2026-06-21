@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, CheckCircle2, TrendingUp } from "lucide-react";
-import { useAjustes, MetodoWood305 } from "@/context/AjustesContext";
+import { Plus, Pencil, Trash2, CheckCircle2, RotateCcw } from "lucide-react";
+import { useAjustes, MetodoWood305, SemaforoUmbrales, defaultSemaforoUmbrales } from "@/context/AjustesContext";
 import { useGanaderia, FactorCorreccion } from "@/context/GanaderiaContext";
 import FieldInput from "@/components/FieldInput";
 import FieldSelect from "@/components/FieldSelect";
@@ -51,14 +51,47 @@ const METODOS: { value: MetodoWood305; label: string; subtitle: string; formula:
   },
 ];
 
+const UmbralField = ({
+  label, value, onChange, unit = "",
+}: { label: string; value: number; onChange: (v: number) => void; unit?: string }) => (
+  <div className="space-y-1">
+    <Label className="text-xs font-medium">{label}</Label>
+    <div className="flex items-center gap-1">
+      <Input
+        type="number"
+        step="0.1"
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        className="h-8 text-sm bg-field-highlight border-accent w-24"
+      />
+      {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+    </div>
+  </div>
+);
+
 const Ajustes = () => {
-  const { ajustes, setHeredabilidad, setRepetibilidad, setRangoPotenciales, setMetodoWood305, potencialesAuto } = useAjustes();
+  const { ajustes, setHeredabilidad, setRepetibilidad, setRangoPotenciales, setMetodoWood305, setSemaforoUmbrales, potencialesAuto } = useAjustes();
   const { factores, setFactores } = useGanaderia();
 
   const [customRange, setCustomRange] = useState(ajustes.rangoPotenciales.join(", "));
   const [factorForm, setFactorForm] = useState<FactorCorreccion>(emptyFactor);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
+  const [umbrales, setUmbralesLocal] = useState<SemaforoUmbrales>(ajustes.semaforoUmbrales);
+
+  const updateUmbral = (key: keyof SemaforoUmbrales) => (v: number) =>
+    setUmbralesLocal(prev => ({ ...prev, [key]: v }));
+
+  const handleSaveUmbrales = () => {
+    setSemaforoUmbrales(umbrales);
+    toast.success("Umbrales de semáforo guardados");
+  };
+
+  const handleResetUmbrales = () => {
+    setUmbralesLocal(defaultSemaforoUmbrales);
+    setSemaforoUmbrales(defaultSemaforoUmbrales);
+    toast.success("Umbrales restablecidos a valores por defecto");
+  };
 
   const handleRangeApply = () => {
     const vals = customRange.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
@@ -209,6 +242,103 @@ const Ajustes = () => {
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Estos valores se aplican automáticamente en Valor de Cría y Tablero Final.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Semáforo de Indicadores */}
+        <Card className="border-2 border-primary/20">
+          <CardHeader className="bg-accent/50 pb-2">
+            <CardTitle className="text-lg font-bold">Umbrales del Semáforo de Indicadores</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-5">
+            <p className="text-sm text-muted-foreground">
+              Configure los valores de corte para los círculos de color en el Reporte de Vacas.
+              Cada vaca mostrará tres círculos: reproductivo, productivo y otros.
+            </p>
+
+            {/* Reproductivos */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />
+                <p className="text-sm font-semibold text-blue-700">Indicadores Reproductivos</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-5">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IIP (días)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <UmbralField label="🟢 Verde si &lt;" value={umbrales.iip_verde_max} onChange={updateUmbral("iip_verde_max")} unit="días" />
+                    <UmbralField label="🔴 Rojo si &gt;" value={umbrales.iip_amarillo_max} onChange={updateUmbral("iip_amarillo_max")} unit="días" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IPC (días)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <UmbralField label="🟢 Verde si &lt;" value={umbrales.ipc_verde_max} onChange={updateUmbral("ipc_verde_max")} unit="días" />
+                    <UmbralField label="🔴 Rojo si &gt;" value={umbrales.ipc_amarillo_max} onChange={updateUmbral("ipc_amarillo_max")} unit="días" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Serv/Conc</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <UmbralField label="🟢 Verde si &lt;" value={umbrales.sc_verde_max} onChange={updateUmbral("sc_verde_max")} />
+                    <UmbralField label="🔴 Rojo si &gt;" value={umbrales.sc_amarillo_max} onChange={updateUmbral("sc_amarillo_max")} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Productivos */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-green-500 inline-block" />
+                <p className="text-sm font-semibold text-green-700">Indicadores Productivos</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-5">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Producción vs Potencial (%)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <UmbralField label="🟢 Verde si &gt;" value={umbrales.prod_verde_min} onChange={updateUmbral("prod_verde_min")} unit="%" />
+                    <UmbralField label="🔴 Rojo si &lt;" value={umbrales.prod_amarillo_min} onChange={updateUmbral("prod_amarillo_min")} unit="%" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Otros */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-purple-500 inline-block" />
+                <p className="text-sm font-semibold text-purple-700">Otros Indicadores (Salud)</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-5">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mastitis (conteo)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <UmbralField label="🟢 Verde si ≤" value={umbrales.mastitis_verde_max} onChange={updateUmbral("mastitis_verde_max")} />
+                    <UmbralField label="🔴 Rojo si &gt;" value={umbrales.mastitis_amarillo_max} onChange={updateUmbral("mastitis_amarillo_max")} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Renguera (score)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <UmbralField label="🟢 Verde si ≤" value={umbrales.renguera_verde_max} onChange={updateUmbral("renguera_verde_max")} />
+                    <UmbralField label="🔴 Rojo si &gt;" value={umbrales.renguera_amarillo_max} onChange={updateUmbral("renguera_amarillo_max")} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button onClick={handleSaveUmbrales} size="sm" data-testid="button-save-umbrales">
+                Guardar umbrales
+              </Button>
+              <Button onClick={handleResetUmbrales} variant="outline" size="sm" data-testid="button-reset-umbrales">
+                <RotateCcw className="h-3 w-3 mr-1" /> Restablecer
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Entre el límite verde y rojo se muestra amarillo. Los umbrales se guardan localmente en este navegador.
             </p>
           </CardContent>
         </Card>

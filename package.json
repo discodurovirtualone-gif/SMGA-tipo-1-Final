@@ -59,6 +59,7 @@
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.462.0",
+    "ml-levenberg-marquardt": "^5.0.1",
     "next-themes": "^0.3.0",
     "pdfkit": "^0.19.1",
     "pg": "^8.20.0",

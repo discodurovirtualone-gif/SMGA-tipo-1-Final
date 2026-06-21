@@ -61,17 +61,20 @@ export function ajustarWoodLM(
 
   const n = dias.length;
 
-  // Estimación inicial del potencial usando el pesaje más cercano al día 120
+  // Parámetros estándar de la curva Wood (base para valores fijos y estimación inicial)
+  const b0 = raza === 'Jersey' ? 0.095 : 0.1027;
+  const c0 = 0.003;
+
+  // Estimación inicial de 'a' a partir del pesaje más cercano al día 120.
+  // Despejamos directamente de Y(dRef) = a · dRef^b · e^(-c·dRef) con b=b0, c=c0.
   let refIdx = 0;
   let minDistRef = Math.abs(dias[0] - 120);
   for (let i = 1; i < n; i++) {
     const d = Math.abs(dias[i] - 120);
     if (d < minDistRef) { minDistRef = d; refIdx = i; }
   }
-  const potencialInicial = produccion[refIdx] / (raza === 'Jersey' ? 0.80 : 0.85);
-  const a0 = 0.0318 * potencialInicial;
-  const b0 = raza === 'Jersey' ? 0.095 : 0.1027;
-  const c0 = 0.003;
+  const diaRef = dias[refIdx];
+  const a0 = produccion[refIdx] / (Math.pow(diaRef, b0) * Math.exp(-c0 * diaRef));
 
   // Restricciones según cantidad de puntos
   let minValues: number[], maxValues: number[];

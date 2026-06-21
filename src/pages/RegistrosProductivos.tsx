@@ -83,17 +83,19 @@ const RegistrosProductivos = () => {
    * por cada pesaje y promedia los 4 potenciales asignados.
    */
   const calcWood305Simplificado = (f: RegistroProductivo): string => {
-    const reales = [
-      parseFloat(f.reg_1_dia30), parseFloat(f.reg_2_dia120),
-      parseFloat(f.reg_3_dia210), parseFloat(f.reg_4_dia270),
-    ].filter(v => !isNaN(v) && v > 0);
-    if (reales.length === 0) return "";
-    const dias = DIAS_FIJOS.slice(0, reales.length);
-    const pots = reales.map((real, i) => {
+    // Emparejamos cada registro con su día correcto antes de filtrar
+    const pares = [
+      { dia: 30,  real: parseFloat(f.reg_1_dia30)  },
+      { dia: 120, real: parseFloat(f.reg_2_dia120) },
+      { dia: 210, real: parseFloat(f.reg_3_dia210) },
+      { dia: 270, real: parseFloat(f.reg_4_dia270) },
+    ].filter(p => !isNaN(p.real) && p.real > 0);
+    if (pares.length === 0) return "";
+    const pots = pares.map(({ dia, real }) => {
       let closest = POTENCIALES[0];
-      let minDiff = Math.abs(calcWood(POTENCIALES[0], dias[i]) - real);
+      let minDiff = Math.abs(calcWood(POTENCIALES[0], dia) - real);
       for (const pot of POTENCIALES) {
-        const diff = Math.abs(calcWood(pot, dias[i]) - real);
+        const diff = Math.abs(calcWood(pot, dia) - real);
         if (diff < minDiff) { minDiff = diff; closest = pot; }
       }
       return closest;

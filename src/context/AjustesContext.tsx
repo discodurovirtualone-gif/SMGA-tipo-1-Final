@@ -8,6 +8,8 @@ export interface SemaforoUmbrales {
   iip_amarillo_max: number;
   ipc_verde_max: number;
   ipc_amarillo_max: number;
+  ips_verde_max: number;
+  ips_amarillo_max: number;
   sc_verde_max: number;
   sc_amarillo_max: number;
   prod_verde_min: number;
@@ -23,6 +25,8 @@ export const defaultSemaforoUmbrales: SemaforoUmbrales = {
   iip_amarillo_max: 420,
   ipc_verde_max: 110,
   ipc_amarillo_max: 140,
+  ips_verde_max: 60,
+  ips_amarillo_max: 90,
   sc_verde_max: 1.8,
   sc_amarillo_max: 2.5,
   prod_verde_min: 85,

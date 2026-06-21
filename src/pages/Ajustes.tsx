@@ -263,7 +263,7 @@ const Ajustes = () => {
                 <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />
                 <p className="text-sm font-semibold text-blue-700">Indicadores Reproductivos</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pl-5">
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IIP (días)</p>
                   <div className="flex gap-2 flex-wrap">
@@ -276,6 +276,13 @@ const Ajustes = () => {
                   <div className="flex gap-2 flex-wrap">
                     <UmbralField label="🟢 Verde si &lt;" value={umbrales.ipc_verde_max} onChange={updateUmbral("ipc_verde_max")} unit="días" />
                     <UmbralField label="🔴 Rojo si &gt;" value={umbrales.ipc_amarillo_max} onChange={updateUmbral("ipc_amarillo_max")} unit="días" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IPS — Parto/Servicio (días)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <UmbralField label="🟢 Verde si &lt;" value={umbrales.ips_verde_max} onChange={updateUmbral("ips_verde_max")} unit="días" />
+                    <UmbralField label="🔴 Rojo si &gt;" value={umbrales.ips_amarillo_max} onChange={updateUmbral("ips_amarillo_max")} unit="días" />
                   </div>
                 </div>
                 <div className="space-y-2">

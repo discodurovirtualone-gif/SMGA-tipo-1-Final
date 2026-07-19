@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, numeric, integer, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, numeric, integer, date, timestamp, unique, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const registrosBasicos = pgTable("registros_basicos", {
@@ -12,7 +12,9 @@ export const registrosBasicos = pgTable("registros_basicos", {
   edad: integer("edad"),
   potencial_vaca: text("potencial_vaca"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-});
+}, (t) => ({
+  uqVacaEjercicio: unique("uq_basicos_vaca_ejercicio").on(t.id_vaca, t.ejercicio),
+}));
 
 export const registrosProductivos = pgTable("registros_productivos", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -31,7 +33,13 @@ export const registrosProductivos = pgTable("registros_productivos", {
   lact4: numeric("lact4"),
   lact5: numeric("lact5"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-});
+}, (t) => ({
+  fkBasicos: foreignKey({
+    name: "fk_productivos_basicos",
+    columns: [t.id_vaca, t.ejercicio],
+    foreignColumns: [registrosBasicos.id_vaca, registrosBasicos.ejercicio],
+  }).onDelete("cascade"),
+}));
 
 export const registrosReproductivos = pgTable("registros_reproductivos", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -51,7 +59,13 @@ export const registrosReproductivos = pgTable("registros_reproductivos", {
   ipc: numeric("ipc"),
   serv_conc: numeric("serv_conc"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-});
+}, (t) => ({
+  fkBasicos: foreignKey({
+    name: "fk_reproductivos_basicos",
+    columns: [t.id_vaca, t.ejercicio],
+    foreignColumns: [registrosBasicos.id_vaca, registrosBasicos.ejercicio],
+  }).onDelete("cascade"),
+}));
 
 export const registrosOtros = pgTable("registros_otros", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -63,7 +77,13 @@ export const registrosOtros = pgTable("registros_otros", {
   longevidad: integer("longevidad"),
   fortaleza_patas: integer("fortaleza_patas"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-});
+}, (t) => ({
+  fkBasicos: foreignKey({
+    name: "fk_otros_basicos",
+    columns: [t.id_vaca, t.ejercicio],
+    foreignColumns: [registrosBasicos.id_vaca, registrosBasicos.ejercicio],
+  }).onDelete("cascade"),
+}));
 
 export const toros = pgTable("toros", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

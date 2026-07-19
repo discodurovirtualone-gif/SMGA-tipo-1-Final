@@ -158,6 +158,13 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
       otros: ReturnType<typeof otroToDb>[];
     } = { basicos: [], productivos: [], reproductivos: [], otros: [] };
 
+    const appRowsBySection: {
+      basicos: RegistroBasico[];
+      productivos: RegistroProductivo[];
+      reproductivos: RegistroReproductivo[];
+      otros: RegistroOtro[];
+    } = { basicos: [], productivos: [], reproductivos: [], otros: [] };
+
     const loaded: string[] = [];
     let totalRows = 0;
 
@@ -172,14 +179,14 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
           ...r,
           edad: r.fecha_nacimiento ? String(calcEdadMeses(r.fecha_nacimiento)) : r.edad || "",
         } as RegistroBasico));
-        setRegistrosBasicos(prev => [...prev, ...appRows]);
+        appRowsBySection.basicos.push(...appRows);
         body.basicos.push(...appRows.map(basicoToDb));
       } else if (sec.name === "Productivos") {
         const appRows: RegistroProductivo[] = filledRows.map(r => ({
           ...r, lc305_wood: r.lc305_wood || "",
           lact1: r.lact1||"", lact2: r.lact2||"", lact3: r.lact3||"", lact4: r.lact4||"", lact5: r.lact5||"",
         } as RegistroProductivo));
-        setRegistrosProductivos(prev => [...prev, ...appRows]);
+        appRowsBySection.productivos.push(...appRows);
         body.productivos.push(...appRows.map(productivoToDb));
       } else if (sec.name === "Reproductivos") {
         const appRows: RegistroReproductivo[] = filledRows.map(r => {
@@ -197,16 +204,22 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
           const serv_conc = [s1, s2, s3].filter(Boolean).length || "";
           return { ...r, iip, ipc, serv_conc: String(serv_conc), toroUsado: r.toroUsado || "" } as RegistroReproductivo;
         });
-        setRegistrosReproductivos(prev => [...prev, ...appRows]);
+        appRowsBySection.reproductivos.push(...appRows);
         body.reproductivos.push(...appRows.map(reproductivoToDb));
       } else if (sec.name === "Otros") {
         const appRows = filledRows as unknown as RegistroOtro[];
-        setRegistrosOtros(prev => [...prev, ...appRows]);
+        appRowsBySection.otros.push(...appRows);
         body.otros.push(...appRows.map(otroToDb));
       }
 
       totalRows += filledRows.length;
       loaded.push(`${sec.name}: ${filledRows.length}`);
+    }
+
+    if (totalRows === 0) {
+      setStatus({ type: "error", message: "No se encontraron datos válidos en el archivo" });
+      setPending(null);
+      return;
     }
 
     try {
@@ -217,18 +230,25 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
       });
       if (!resp.ok) {
         const e = await resp.json().catch(() => ({ error: resp.statusText }));
-        toast.warning(`Error al guardar en base de datos: ${e.error}`);
+        setStatus({ type: "error", message: `❌ Error al guardar: ${e.error}` });
+        toast.error(`Error al guardar: ${e.error}`);
+        setPending(null);
+        return;
       }
     } catch (err: any) {
-      toast.warning(`Error al guardar en base de datos: ${err.message}`);
+      setStatus({ type: "error", message: `❌ Error al guardar: ${err.message}` });
+      toast.error(`Error al guardar: ${err.message}`);
+      setPending(null);
+      return;
     }
 
-    if (totalRows > 0) {
-      setStatus({ type: "success", message: `✅ ${totalRows} registros cargados (${loaded.join(", ")})` });
-      toast.success(`${totalRows} registros importados y guardados`);
-    } else {
-      setStatus({ type: "error", message: "No se encontraron datos válidos en el archivo" });
-    }
+    if (appRowsBySection.basicos.length) setRegistrosBasicos(prev => [...prev, ...appRowsBySection.basicos]);
+    if (appRowsBySection.productivos.length) setRegistrosProductivos(prev => [...prev, ...appRowsBySection.productivos]);
+    if (appRowsBySection.reproductivos.length) setRegistrosReproductivos(prev => [...prev, ...appRowsBySection.reproductivos]);
+    if (appRowsBySection.otros.length) setRegistrosOtros(prev => [...prev, ...appRowsBySection.otros]);
+
+    setStatus({ type: "success", message: `✅ ${totalRows} registros cargados (${loaded.join(", ")})` });
+    toast.success(`${totalRows} registros importados y guardados`);
     setPending(null);
   };
 

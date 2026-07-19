@@ -314,10 +314,14 @@ app.post("/api/bulk_insert", async (req, res) => {
       otros: any[];
     };
     await db.transaction(async (tx) => {
-      if (basicos.length > 0) await tx.insert(registrosBasicos).values(basicos);
-      if (productivos.length > 0) await tx.insert(registrosProductivos).values(productivos);
-      if (reproductivos.length > 0) await tx.insert(registrosReproductivos).values(reproductivos);
-      if (otros.length > 0) await tx.insert(registrosOtros).values(otros);
+      if (basicos.length > 0)
+        await tx.insert(registrosBasicos).values(basicos).onConflictDoNothing();
+      if (productivos.length > 0)
+        await tx.insert(registrosProductivos).values(productivos).onConflictDoNothing();
+      if (reproductivos.length > 0)
+        await tx.insert(registrosReproductivos).values(reproductivos).onConflictDoNothing();
+      if (otros.length > 0)
+        await tx.insert(registrosOtros).values(otros).onConflictDoNothing();
     });
     res.json({ success: true });
   } catch (err) {

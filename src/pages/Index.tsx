@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BulkUpload from "@/components/BulkUpload";
 import PdfDownload from "@/components/PdfDownload";
+import ExportExcel from "@/components/ExportExcel";
 
 const ejercicioOptions = Array.from({ length: 10 }, (_, i) => {
   const y = 2020 + i;
@@ -144,7 +145,7 @@ const Index = () => {
         </p>
       </div>
 
-      {/* Carga masiva y PDF */}
+      {/* Carga masiva, PDF y Exportación */}
       <div className="flex flex-col md:flex-row gap-4 max-w-4xl w-full mb-10">
         <div className="flex-1 flex flex-col gap-2">
           <div className="flex items-center gap-2 mb-1">
@@ -167,11 +168,19 @@ const Index = () => {
             Suba un archivo Excel o CSV con todos los datos de sus animales de una sola vez.
           </p>
         </div>
-        <div className="flex-1 flex flex-col gap-2">
-          <PdfDownload />
-          <p className="text-sm text-muted-foreground px-1">
-            Descargue una planilla en PDF para completar a mano o de forma digital.
-          </p>
+        <div className="flex-1 flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <PdfDownload />
+            <p className="text-sm text-muted-foreground px-1">
+              Descargue una planilla en PDF para completar a mano o de forma digital.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <ExportExcel />
+            <p className="text-sm text-muted-foreground px-1">
+              Exporta todas las tablas de la base de datos a Excel para auditoría independiente.
+            </p>
+          </div>
         </div>
       </div>
 

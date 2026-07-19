@@ -307,6 +307,24 @@ app.delete("/api/toros/:id_toro", async (req, res) => {
   }
 });
 
+// ─── Export (datos crudos, 5 tablas) ──────────────────────────────────────
+
+app.get("/api/export", async (_req, res) => {
+  try {
+    const [basicos, productivos, reproductivos, otros, torosRows] = await Promise.all([
+      db.select().from(registrosBasicos),
+      db.select().from(registrosProductivos),
+      db.select().from(registrosReproductivos),
+      db.select().from(registrosOtros),
+      db.select().from(toros),
+    ]);
+    res.json({ basicos, productivos, reproductivos, otros, toros: torosRows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to export data" });
+  }
+});
+
 // ─── Bulk Insert (transaccional) ──────────────────────────────────────────
 
 app.post("/api/bulk_insert", async (req, res) => {

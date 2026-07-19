@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, numeric, integer, date, timestamp, unique, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, numeric, integer, date, timestamp, unique, foreignKey, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const registrosBasicos = pgTable("registros_basicos", {
@@ -56,6 +56,8 @@ export const registrosProductivos = pgTable("registros_productivos", {
     columns: [t.id_vaca, t.ejercicio],
     foreignColumns: [registrosBasicos.id_vaca, registrosBasicos.ejercicio],
   }).onDelete("cascade"),
+  uqVacaEj: unique("uq_prod_vaca_ej").on(t.id_vaca, t.ejercicio),
+  ckEjercicio: check("ck_prod_ejercicio", sql`${t.ejercicio} <> ''`),
 }));
 
 export const registrosReproductivos = pgTable("registros_reproductivos", {
@@ -87,6 +89,8 @@ export const registrosReproductivos = pgTable("registros_reproductivos", {
     columns: [t.toro_usado],
     foreignColumns: [toros.id_toro],
   }).onDelete("set null"),
+  uqVacaEj: unique("uq_repro_vaca_ej").on(t.id_vaca, t.ejercicio),
+  ckEjercicio: check("ck_repro_ejercicio", sql`${t.ejercicio} <> ''`),
 }));
 
 export const registrosOtros = pgTable("registros_otros", {
@@ -105,4 +109,6 @@ export const registrosOtros = pgTable("registros_otros", {
     columns: [t.id_vaca, t.ejercicio],
     foreignColumns: [registrosBasicos.id_vaca, registrosBasicos.ejercicio],
   }).onDelete("cascade"),
+  uqVacaEj: unique("uq_otros_vaca_ej").on(t.id_vaca, t.ejercicio),
+  ckEjercicio: check("ck_otros_ejercicio", sql`${t.ejercicio} <> ''`),
 }));

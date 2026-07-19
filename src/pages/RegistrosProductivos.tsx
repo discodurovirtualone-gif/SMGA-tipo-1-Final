@@ -180,8 +180,11 @@ const RegistrosProductivos = () => {
         const lc = parseFloat(prod.lc305_wood);
         const lcValido = !isNaN(lc) && lc > 0;
 
+        console.log(`[POTENCIAL] vaca=${id_vaca} ej=${prod.ejercicio} i=${i} lc305=${lc} historial_antes=[${lcHistorial.join(',')}]`);
+
         if (i === 0 || lcHistorial.length === 0) {
           if (lcValido) lcHistorial.push(lc);
+          console.log(`[POTENCIAL]   → SKIP (primer ej o historial vacío), historial_ahora=[${lcHistorial.join(',')}]`);
           continue;
         }
 
@@ -189,6 +192,7 @@ const RegistrosProductivos = () => {
           lcHistorial.reduce((a, b) => a + b, 0) / lcHistorial.length
         );
         const potencial_vaca = promedio.toString();
+        console.log(`[POTENCIAL]   → promedio=${potencial_vaca} (de ${lcHistorial.length} valores)`);
 
         const actual = updatedBasicos
           .find(b => b.id_vaca === id_vaca && b.ejercicio === prod.ejercicio)

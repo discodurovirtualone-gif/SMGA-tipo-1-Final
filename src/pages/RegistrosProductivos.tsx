@@ -167,23 +167,26 @@ const RegistrosProductivos = () => {
       if (!isNaN(lc) && lc > 0)
         maxLc305[p.id_vaca] = Math.max(maxLc305[p.id_vaca] || 0, lc);
     }
+    // Actualizar potencial_vaca por vaca (un solo PATCH por id_vaca, no por ejercicio)
+    const vacasConNuevoPotencial = Object.entries(maxLc305)
+      .map(([id_vaca, maxLc]) => ({ id_vaca, potencial_vaca: Math.round(maxLc).toString() }))
+      .filter(({ id_vaca, potencial_vaca }) => {
+        const actual = registrosBasicos.find(b => b.id_vaca === id_vaca)?.potencial_vaca;
+        return actual !== potencial_vaca;
+      });
+
     let updatedBasicos = [...registrosBasicos];
     let basicosCount = 0;
-    for (const basico of registrosBasicos) {
-      const maxLc = maxLc305[basico.id_vaca];
-      if (!maxLc) continue;
-      const potencial_vaca = Math.round(maxLc).toString();
-      if (basico.potencial_vaca === potencial_vaca) continue;
+    for (const { id_vaca, potencial_vaca } of vacasConNuevoPotencial) {
       try {
         const resp = await fetch(
-          `/api/registros_basicos/${encodeURIComponent(basico.id_vaca)}/${encodeURIComponent(basico.ejercicio)}`,
-          { method: "PUT", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(basicoToDb({ ...basico, potencial_vaca })) }
+          `/api/registros_basicos/${encodeURIComponent(id_vaca)}/potencial`,
+          { method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ potencial_vaca }) }
         );
         if (resp.ok) {
           updatedBasicos = updatedBasicos.map(b =>
-            b.id_vaca === basico.id_vaca && b.ejercicio === basico.ejercicio
-              ? { ...b, potencial_vaca } : b
+            b.id_vaca === id_vaca ? { ...b, potencial_vaca } : b
           );
           basicosCount++;
         }

@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 export interface RegistroReproductivo {
   id_vaca: string;
@@ -231,24 +230,13 @@ export const GanaderiaProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [
-          { data: basicos, error: e1 },
-          { data: productivos, error: e2 },
-          { data: reproductivos, error: e3 },
-          { data: otros, error: e4 },
-          { data: torosData, error: e5 },
-        ] = await Promise.all([
-          supabase.from('registros_basicos').select('*'),
-          supabase.from('registros_productivos').select('*'),
-          supabase.from('registros_reproductivos').select('*'),
-          supabase.from('registros_otros').select('*'),
-          supabase.from('toros').select('*'),
+        const [basicos, productivos, reproductivos, otros, torosData] = await Promise.all([
+          fetch('/api/registros_basicos').then(r => r.json()).catch(() => []),
+          fetch('/api/registros_productivos').then(r => r.json()).catch(() => []),
+          fetch('/api/registros_reproductivos').then(r => r.json()).catch(() => []),
+          fetch('/api/registros_otros').then(r => r.json()).catch(() => []),
+          fetch('/api/toros').then(r => r.json()).catch(() => []),
         ]);
-        if (e1) console.error('Error cargando basicos:', e1.message);
-        if (e2) console.error('Error cargando productivos:', e2.message);
-        if (e3) console.error('Error cargando reproductivos:', e3.message);
-        if (e4) console.error('Error cargando otros:', e4.message);
-        if (e5) console.error('Error cargando toros:', e5.message);
 
         if (basicos?.length) {
           setRegistrosBasicos(basicos.map((r: any) => ({
@@ -306,7 +294,9 @@ export const GanaderiaProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const deleteRegistro = async (table: string, id_vaca: string, ejercicio: string) => {
-    await supabase.from(table as any).delete().eq('id_vaca', id_vaca).eq('ejercicio', ejercicio);
+    await fetch(`/api/${table}/${encodeURIComponent(id_vaca)}/${encodeURIComponent(ejercicio)}`, {
+      method: 'DELETE',
+    });
     switch (table) {
       case 'registros_basicos':
         setRegistrosBasicos(prev => prev.filter(r => !(r.id_vaca === id_vaca && r.ejercicio === ejercicio)));

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Upload, ArrowUpDown, Pencil, Trash2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { useGanaderia, Toro } from "@/context/GanaderiaContext";
-import { supabase } from "@/integrations/supabase/client";
 
 const calcINIA = (dep_leche: number, dep_grasa: number, dep_prot: number) =>
   -0.0477 * dep_leche + 0.8317 * dep_grasa + 1.4394 * dep_prot;
@@ -105,20 +104,17 @@ const ReporteToros = () => {
       caracteristicas: editState.caracteristicas,
     };
 
-    const { error } = await supabase.from('toros').update({
-      nombre: updated.nombre,
-      dep_leche,
-      dep_grasa,
-      dep_prot,
-      dep_tph,
-      indice_inia,
-      indice_rovere,
-      precio_dosis,
-      caracteristicas: updated.caracteristicas,
-    } as any).eq('id_toro', editingId);
-    if (error) {
-      toast.error(`Error al guardar: ${error.message}`);
-      console.error(error);
+    const resp = await fetch(`/api/toros/${editingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: updated.nombre, dep_leche, dep_grasa, dep_prot, dep_tph,
+        indice_inia, indice_rovere, precio_dosis, caracteristicas: updated.caracteristicas,
+      }),
+    });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({ error: resp.statusText }));
+      toast.error(`Error al guardar: ${e.error}`);
     } else {
       setToros(prev => prev.map(t => t.id_toro === editingId ? updated : t));
       toast.success("Toro actualizado");
@@ -128,10 +124,10 @@ const ReporteToros = () => {
   };
 
   const handleDelete = async (id_toro: string) => {
-    const { error } = await supabase.from('toros').delete().eq('id_toro', id_toro);
-    if (error) {
-      toast.error(`Error al eliminar: ${error.message}`);
-      console.error(error);
+    const resp = await fetch(`/api/toros/${id_toro}`, { method: 'DELETE' });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({ error: resp.statusText }));
+      toast.error(`Error al eliminar: ${e.error}`);
     } else {
       setToros(prev => prev.filter(t => t.id_toro !== id_toro));
       toast.success("Toro eliminado");
@@ -175,7 +171,11 @@ const ReporteToros = () => {
             indice_inia: t.indice_inia, indice_rovere: t.indice_rovere,
             caracteristicas: t.caracteristicas, precio_dosis: t.precio_dosis,
           }));
-          supabase.from('toros').insert(dbRows as any).then(({ error }) => { if (error) console.error('Error saving toros:', error); });
+          fetch('/api/toros', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dbRows),
+          }).then(r => { if (!r.ok) r.json().then(e => console.error('Error saving toros:', e)); });
           toast.success(`${newToros.length} toros importados con índices calculados`);
         } else {
           toast.error("No se encontraron datos de toros válidos");

@@ -298,6 +298,34 @@ app.delete("/api/toros/:id_toro", async (req, res) => {
   }
 });
 
+// ─── Bulk Insert (transaccional) ──────────────────────────────────────────
+
+app.post("/api/bulk_insert", async (req, res) => {
+  try {
+    const {
+      basicos = [],
+      productivos = [],
+      reproductivos = [],
+      otros = [],
+    } = req.body as {
+      basicos: any[];
+      productivos: any[];
+      reproductivos: any[];
+      otros: any[];
+    };
+    await db.transaction(async (tx) => {
+      if (basicos.length > 0) await tx.insert(registrosBasicos).values(basicos);
+      if (productivos.length > 0) await tx.insert(registrosProductivos).values(productivos);
+      if (reproductivos.length > 0) await tx.insert(registrosReproductivos).values(reproductivos);
+      if (otros.length > 0) await tx.insert(registrosOtros).values(otros);
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);

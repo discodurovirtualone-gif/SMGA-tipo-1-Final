@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { Pencil, Trash2 } from "lucide-react";
 import { useGanaderia, RegistroOtro, otroToDb } from "@/context/GanaderiaContext";
-import { supabase } from "@/integrations/supabase/client";
 import PdfReportButton from "@/components/PdfReportButton";
 import DeleteAllButton from "@/components/DeleteAllButton";
 
@@ -44,13 +43,17 @@ const RegistrosOtros = () => {
     const existingIdx = registrosOtros.findIndex(r => r.id_vaca === editVacaId);
 
     if (existingIdx >= 0) {
-      const { error } = await supabase.from('registros_otros').update(dbRow).eq('id_vaca', form.id_vaca).eq('ejercicio', form.ejercicio);
-      if (error) { toast.error(`Error al actualizar: ${error.message}`); console.error(error); return; }
+      const resp = await fetch(`/api/registros_otros/${encodeURIComponent(form.id_vaca)}/${encodeURIComponent(form.ejercicio)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbRow),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({ error: resp.statusText })); toast.error(`Error al actualizar: ${e.error}`); return; }
       setRegistrosOtros(prev => prev.map((r, i) => (i === existingIdx ? form : r)));
       toast.success("Registro actualizado");
     } else {
-      const { error } = await supabase.from('registros_otros').insert(dbRow);
-      if (error) { toast.error(`Error al guardar: ${error.message}`); console.error(error); return; }
+      const resp = await fetch('/api/registros_otros', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbRow),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({ error: resp.statusText })); toast.error(`Error al guardar: ${e.error}`); return; }
       setRegistrosOtros(prev => [...prev, form]);
       toast.success("Registro guardado");
     }
@@ -63,7 +66,7 @@ const RegistrosOtros = () => {
   };
 
   const handleDeleteAll = async () => {
-    await supabase.from('registros_otros').delete().neq('id', '');
+    await fetch('/api/registros_otros', { method: 'DELETE' });
     setRegistrosOtros([]);
     toast.success("Todos los otros registros eliminados");
   };

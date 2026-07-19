@@ -3,7 +3,6 @@ import * as XLSX from "xlsx";
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import {
   useGanaderia, RegistroBasico, RegistroProductivo, RegistroReproductivo, RegistroOtro,
   basicoToDb, productivoToDb, reproductivoToDb, otroToDb, calcEdadMeses,
@@ -152,7 +151,13 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
   };
 
   const insertSections = async (sections: PendingSection[]) => {
-    const errors: string[] = [];
+    const body: {
+      basicos: ReturnType<typeof basicoToDb>[];
+      productivos: ReturnType<typeof productivoToDb>[];
+      reproductivos: ReturnType<typeof reproductivoToDb>[];
+      otros: ReturnType<typeof otroToDb>[];
+    } = { basicos: [], productivos: [], reproductivos: [], otros: [] };
+
     const loaded: string[] = [];
     let totalRows = 0;
 
@@ -168,16 +173,14 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
           edad: r.fecha_nacimiento ? String(calcEdadMeses(r.fecha_nacimiento)) : r.edad || "",
         } as RegistroBasico));
         setRegistrosBasicos(prev => [...prev, ...appRows]);
-        try { await supabase.from('registros_basicos').insert(appRows.map(basicoToDb)); }
-        catch (err: any) { errors.push(`Básicos DB: ${err.message}`); }
+        body.basicos.push(...appRows.map(basicoToDb));
       } else if (sec.name === "Productivos") {
         const appRows: RegistroProductivo[] = filledRows.map(r => ({
           ...r, lc305_wood: r.lc305_wood || "",
           lact1: r.lact1||"", lact2: r.lact2||"", lact3: r.lact3||"", lact4: r.lact4||"", lact5: r.lact5||"",
         } as RegistroProductivo));
         setRegistrosProductivos(prev => [...prev, ...appRows]);
-        try { await supabase.from('registros_productivos').insert(appRows.map(productivoToDb)); }
-        catch (err: any) { errors.push(`Productivos DB: ${err.message}`); }
+        body.productivos.push(...appRows.map(productivoToDb));
       } else if (sec.name === "Reproductivos") {
         const appRows: RegistroReproductivo[] = filledRows.map(r => {
           const parto = r.parto || "", parto1 = r.parto1 || "", concepcion1 = r.concepcion1 || "";
@@ -195,31 +198,35 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
           return { ...r, iip, ipc, serv_conc: String(serv_conc), toroUsado: r.toroUsado || "" } as RegistroReproductivo;
         });
         setRegistrosReproductivos(prev => [...prev, ...appRows]);
-        try { await supabase.from('registros_reproductivos').insert(appRows.map(reproductivoToDb)); }
-        catch (err: any) { errors.push(`Reproductivos DB: ${err.message}`); }
+        body.reproductivos.push(...appRows.map(reproductivoToDb));
       } else if (sec.name === "Otros") {
         const appRows = filledRows as unknown as RegistroOtro[];
         setRegistrosOtros(prev => [...prev, ...appRows]);
-        try { await supabase.from('registros_otros').insert(appRows.map(otroToDb)); }
-        catch (err: any) { errors.push(`Otros DB: ${err.message}`); }
+        body.otros.push(...appRows.map(otroToDb));
       }
 
       totalRows += filledRows.length;
       loaded.push(`${sec.name}: ${filledRows.length}`);
     }
 
+    try {
+      const resp = await fetch('/api/bulk_insert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({ error: resp.statusText }));
+        toast.warning(`Error al guardar en base de datos: ${e.error}`);
+      }
+    } catch (err: any) {
+      toast.warning(`Error al guardar en base de datos: ${err.message}`);
+    }
+
     if (totalRows > 0) {
       setStatus({ type: "success", message: `✅ ${totalRows} registros cargados (${loaded.join(", ")})` });
       toast.success(`${totalRows} registros importados y guardados`);
-    }
-    if (errors.length > 0) {
-      setStatus(prev => ({
-        type: prev?.type === "success" ? "success" : "error",
-        message: `${prev?.message || ""}\n⚠️ ${errors.join("; ")}`,
-      }));
-      errors.forEach(err => toast.warning(err));
-    }
-    if (totalRows === 0 && errors.length === 0) {
+    } else {
       setStatus({ type: "error", message: "No se encontraron datos válidos en el archivo" });
     }
     setPending(null);
@@ -255,7 +262,6 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
         )}
       </div>
 
-      {/* Confirmación de ejercicio faltante */}
       {pending && (
         <div className="mt-3 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-3">
           <div className="flex items-start gap-2">

@@ -16,6 +16,23 @@ export const registrosBasicos = pgTable("registros_basicos", {
   uqVacaEjercicio: unique("uq_basicos_vaca_ejercicio").on(t.id_vaca, t.ejercicio),
 }));
 
+export const toros = pgTable("toros", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id_toro: text("id_toro").notNull(),
+  nombre: text("nombre"),
+  dep_leche: numeric("dep_leche").default("0"),
+  dep_grasa: numeric("dep_grasa").default("0"),
+  dep_prot: numeric("dep_prot").default("0"),
+  dep_tph: numeric("dep_tph").default("0"),
+  indice_inia: numeric("indice_inia").default("0"),
+  indice_rovere: numeric("indice_rovere").default("0"),
+  caracteristicas: text("caracteristicas"),
+  precio_dosis: numeric("precio_dosis").default("0"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (t) => ({
+  uqIdToro: unique("uq_toros_id_toro").on(t.id_toro),
+}));
+
 export const registrosProductivos = pgTable("registros_productivos", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   ejercicio: text("ejercicio").notNull().default(""),
@@ -65,6 +82,11 @@ export const registrosReproductivos = pgTable("registros_reproductivos", {
     columns: [t.id_vaca, t.ejercicio],
     foreignColumns: [registrosBasicos.id_vaca, registrosBasicos.ejercicio],
   }).onDelete("cascade"),
+  fkToros: foreignKey({
+    name: "fk_reproductivos_toros",
+    columns: [t.toro_usado],
+    foreignColumns: [toros.id_toro],
+  }).onDelete("set null"),
 }));
 
 export const registrosOtros = pgTable("registros_otros", {
@@ -84,18 +106,3 @@ export const registrosOtros = pgTable("registros_otros", {
     foreignColumns: [registrosBasicos.id_vaca, registrosBasicos.ejercicio],
   }).onDelete("cascade"),
 }));
-
-export const toros = pgTable("toros", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  id_toro: text("id_toro").notNull(),
-  nombre: text("nombre"),
-  dep_leche: numeric("dep_leche").default("0"),
-  dep_grasa: numeric("dep_grasa").default("0"),
-  dep_prot: numeric("dep_prot").default("0"),
-  dep_tph: numeric("dep_tph").default("0"),
-  indice_inia: numeric("indice_inia").default("0"),
-  indice_rovere: numeric("indice_rovere").default("0"),
-  caracteristicas: text("caracteristicas"),
-  precio_dosis: numeric("precio_dosis").default("0"),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-});

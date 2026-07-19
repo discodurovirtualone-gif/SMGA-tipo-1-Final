@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useGanaderia, RegistroReproductivo, reproductivoToDb } from "@/context/GanaderiaContext";
-import { supabase } from "@/integrations/supabase/client";
 import PdfReportButton from "@/components/PdfReportButton";
 import DeleteAllButton from "@/components/DeleteAllButton";
 
@@ -76,13 +75,17 @@ const RegistrosReproductivos = () => {
     const existingIdx = registrosReproductivos.findIndex(r => r.id_vaca === editVacaId);
 
     if (existingIdx >= 0) {
-      const { error } = await supabase.from('registros_reproductivos').update(dbRow).eq('id_vaca', updatedForm.id_vaca).eq('ejercicio', updatedForm.ejercicio);
-      if (error) { toast.error(`Error al actualizar: ${error.message}`); console.error(error); return; }
+      const resp = await fetch(`/api/registros_reproductivos/${encodeURIComponent(updatedForm.id_vaca)}/${encodeURIComponent(updatedForm.ejercicio)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbRow),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({ error: resp.statusText })); toast.error(`Error al actualizar: ${e.error}`); return; }
       setRegistrosReproductivos(prev => prev.map((r, i) => (i === existingIdx ? updatedForm : r)));
       toast.success("Registro actualizado");
     } else {
-      const { error } = await supabase.from('registros_reproductivos').insert(dbRow);
-      if (error) { toast.error(`Error al guardar: ${error.message}`); console.error(error); return; }
+      const resp = await fetch('/api/registros_reproductivos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbRow),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({ error: resp.statusText })); toast.error(`Error al guardar: ${e.error}`); return; }
       setRegistrosReproductivos(prev => [...prev, updatedForm]);
       toast.success("Registro guardado");
     }
@@ -95,7 +98,7 @@ const RegistrosReproductivos = () => {
   };
 
   const handleDeleteAll = async () => {
-    await supabase.from('registros_reproductivos').delete().neq('id', '');
+    await fetch('/api/registros_reproductivos', { method: 'DELETE' });
     setRegistrosReproductivos([]);
     toast.success("Todos los registros reproductivos eliminados");
   };

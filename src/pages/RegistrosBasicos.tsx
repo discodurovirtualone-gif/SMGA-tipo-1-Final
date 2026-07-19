@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useGanaderia, RegistroBasico, basicoToDb, calcEdadAnios } from "@/context/GanaderiaContext";
-import { supabase } from "@/integrations/supabase/client";
 import PdfReportButton from "@/components/PdfReportButton";
 import DeleteAllButton from "@/components/DeleteAllButton";
 
@@ -49,13 +48,17 @@ const RegistrosBasicos = () => {
     const dbRow = basicoToDb(form);
     if (editIndex !== null) {
       const old = registrosBasicos[editIndex];
-      const { error } = await supabase.from('registros_basicos').update(dbRow).eq('id_vaca', old.id_vaca).eq('ejercicio', old.ejercicio);
-      if (error) { toast.error(`Error al actualizar: ${error.message}`); console.error(error); return; }
+      const resp = await fetch(`/api/registros_basicos/${encodeURIComponent(old.id_vaca)}/${encodeURIComponent(old.ejercicio)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbRow),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({ error: resp.statusText })); toast.error(`Error al actualizar: ${e.error}`); return; }
       setRegistrosBasicos(prev => prev.map((r, i) => (i === editIndex ? form : r)));
       toast.success("Registro actualizado");
     } else {
-      const { error } = await supabase.from('registros_basicos').insert(dbRow);
-      if (error) { toast.error(`Error al guardar: ${error.message}`); console.error(error); return; }
+      const resp = await fetch('/api/registros_basicos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbRow),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({ error: resp.statusText })); toast.error(`Error al guardar: ${e.error}`); return; }
       setRegistrosBasicos(prev => [...prev, form]);
       toast.success("Registro guardado");
     }
@@ -69,7 +72,7 @@ const RegistrosBasicos = () => {
   };
 
   const handleDeleteAll = async () => {
-    await supabase.from('registros_basicos').delete().neq('id', '');
+    await fetch('/api/registros_basicos', { method: 'DELETE' });
     setRegistrosBasicos([]);
     toast.success("Todos los registros básicos eliminados");
   };

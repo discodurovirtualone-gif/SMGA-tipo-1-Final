@@ -139,12 +139,22 @@ export const calcWood = (potencial_vaca: number, dia: number): number => {
   return (potencial_vaca * 0.00318) * Math.pow(dia, 0.1027) * Math.exp(-0.003 * dia);
 };
 
-export const calcEdadAnios = (fechaNac: string): number => {
+export const ejercicioToFechaRef = (ejercicio: string): string => {
+  if (!ejercicio) return new Date().toISOString().slice(0, 10);
+  const parts = ejercicio.split("/");
+  if (parts.length < 2) return new Date().toISOString().slice(0, 10);
+  const yy = parseInt(parts[1], 10);
+  if (isNaN(yy)) return new Date().toISOString().slice(0, 10);
+  const fullYear = yy < 50 ? 2000 + yy : 1900 + yy;
+  return `${fullYear}-07-01`;
+};
+
+export const calcEdadAnios = (fechaNac: string, fechaRef?: string): number => {
   if (!fechaNac) return 0;
   const birth = new Date(fechaNac);
   if (isNaN(birth.getTime())) return 0;
-  const now = new Date();
-  const diffYears = (now.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+  const ref = fechaRef ? new Date(fechaRef) : new Date();
+  const diffYears = (ref.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
   return Math.max(0, Math.floor(diffYears));
 };
 

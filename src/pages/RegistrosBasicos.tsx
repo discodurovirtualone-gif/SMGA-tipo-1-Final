@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useGanaderia, RegistroBasico, basicoToDb, calcEdadAnios } from "@/context/GanaderiaContext";
+import { useGanaderia, RegistroBasico, basicoToDb, calcEdadAnios, ejercicioToFechaRef } from "@/context/GanaderiaContext";
 import PdfReportButton from "@/components/PdfReportButton";
 import DeleteAllButton from "@/components/DeleteAllButton";
 
@@ -35,8 +35,11 @@ const RegistrosBasicos = () => {
   const update = (key: keyof RegistroBasico) => (value: string) => {
     setForm(prev => {
       const next = { ...prev, [key]: value };
-      if (key === "fecha_nacimiento" && value) {
-        next.edad = String(calcEdadAnios(value));
+      const fechaNac = key === "fecha_nacimiento" ? value : prev.fecha_nacimiento;
+      const ejercicio = key === "ejercicio" ? value : prev.ejercicio;
+      if (fechaNac && ejercicio) {
+        const edad = calcEdadAnios(fechaNac, ejercicioToFechaRef(ejercicio));
+        next.edad = String(Math.max(0, edad));
       }
       return next;
     });

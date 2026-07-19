@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useGanaderia, RegistroReproductivo, reproductivoToDb } from "@/context/GanaderiaContext";
+import FieldSelect from "@/components/FieldSelect";
 import PdfReportButton from "@/components/PdfReportButton";
 import DeleteAllButton from "@/components/DeleteAllButton";
 
@@ -18,7 +19,15 @@ const emptyRepro = (id_vaca: string, ejercicio: string): RegistroReproductivo =>
 });
 
 const RegistrosReproductivos = () => {
-  const { registrosBasicos, registrosReproductivos, setRegistrosReproductivos, deleteRegistro } = useGanaderia();
+  const { registrosBasicos, registrosReproductivos, setRegistrosReproductivos, deleteRegistro, toros } = useGanaderia();
+
+  const toroOptions = [
+    { value: "", label: "— Sin toro asignado —" },
+    ...toros.map(t => ({
+      value: t.id_toro,
+      label: t.nombre ? `${t.id_toro} — ${t.nombre}` : t.id_toro,
+    })),
+  ];
   const [form, setForm] = useState<RegistroReproductivo | null>(null);
   const [editVacaId, setEditVacaId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -141,7 +150,14 @@ const RegistrosReproductivos = () => {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <FieldInput label="Concepción 1" value={form.concepcion1} onChange={update("concepcion1")} type="date" highlighted />
-                <FieldInput label="Toro Usado" value={form.toroUsado} onChange={update("toroUsado")} highlighted />
+                <FieldSelect
+                  label="Toro Usado"
+                  value={form.toroUsado}
+                  onChange={update("toroUsado")}
+                  options={toroOptions}
+                  placeholder="— Sin toro asignado —"
+                  highlighted
+                />
                 <FieldInput label="Aborto 1" value={form.aborto1} onChange={update("aborto1")} type="date" highlighted />
                 <FieldInput label="Aborto 2" value={form.aborto2} onChange={update("aborto2")} type="date" highlighted />
               </div>

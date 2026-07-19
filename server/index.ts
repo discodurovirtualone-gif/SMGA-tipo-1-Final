@@ -14,6 +14,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} → ${res.statusCode} (${ms}ms)`);
+  });
+  next();
+});
+
 // ─── Registros Basicos ─────────────────────────────────────────────────────
 
 app.get("/api/registros_basicos", async (_req, res) => {

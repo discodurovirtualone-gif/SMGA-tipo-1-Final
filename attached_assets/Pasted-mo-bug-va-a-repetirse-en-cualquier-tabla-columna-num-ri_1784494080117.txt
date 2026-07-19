@@ -1,0 +1,43 @@
+mo bug va a repetirse en cualquier tabla/columna numérica que quede vacía en un archivo de carga masiva:
+
+"Confirmá si el error es por insertar un string vacío ('') en las columnas numéricas lc305_wood, lact1, lact2, lact3, lact4, lact5 cuando el archivo Excel no las incluye. Si es así, corregí el bulk upload para que, en columnas de tipo numérico, un valor faltante se inserte como NULL en lugar de string vacío (''). Esto puede afectar a otras tablas también — revisá si el mismo problema existe en las columnas numéricas de registros_reproductivos y registros_otros antes de que intente cargar esos archivos."
+
+Una vez corregido eso, tu archivo de Productivos (sin L1-L5) debería insertarse bien, dejando que el sistema calcule LC305 y complete el historial de lactancias solo, como queríamos.El error completo está en los logs del servidor. El mensaje de Postgres es:
+error: insert or update on table "registros_productivos" violates foreign key constraint "fk_productivos_basicos"
+detail: Key (id_vaca, ejercicio)=(1, 20/21) is not present in table "registros_basicos".
+constraint: fk_productivos_basicos
+code: 23503
+La FK exige que (id_vaca, ejercicio) exista en registros_basicos antes de insertar en registros_productivos. Esto puede fallar de dos maneras — necesito ver el orden de inserción en la transacción del servidor:
+2 actions
+Diagnóstico claro del log. El error completo de Postgres:
+code: 23503 (foreign_key_violation)
+constraint: fk_productivos_basicos
+detail: Key (id_vaca, ejercicio)=(1, 20/21) is not present in table "registros_basicos"
+Verifico el estado actual de basicos en la DB y el orden de inserción en el servidor para identificar la causa exacta:
+3 actions
+La causa es clara: registros_basicos está vacía ahora mismo — las 20 filas que teníamos ya no existen. Por eso el FK falla al intentar insertar productivos: no hay ningún (id_vaca, ejercicio) en basicos para referenciar.
+Diagnóstico completo:
+Hecho    Implicación
+registros_basicos = 0 filas    Las filas fueron eliminadas en algún momento
+El archivo subido tiene productivos con (1, 20/21)    FK busca esa clave en basicos → no la encuentra → error 23503
+El orden de la transacción es basicos→productivos (correcto)    No es problema de orden — el problema es que basicos estaba vacía
+Lo que necesitás hacer: incluir la hoja de Básicos en el mismo archivo Excel junto con Productivos, Reproductivos y Otros. La transacción insertará basicos primero (línea 317), y entonces productivos podrá referenciarlos correctamente.
+Y aprovecho para blindar el bulk_insert: si basicos ya existen, en lugar de fallar con UNIQUE violation, los salta silenciosamente (onConflictDoNothing). Así el archivo puede siempre incluir todas las hojas sin importar el estado previo de la DB:
+10 actions
+Servidor corriendo sin errores. Resumen completo de lo que encontré y lo que cambié:
+Causa del error 23503
+registros_basicos está vacía en este momento — las 20 filas que tenía fueron eliminadas (probablemente al usar el botón "Eliminar todos" antes de la carga). Al intentar insertar productivos con (id_vaca=1, ejercicio=20/21), Postgres buscó esa clave en basicos, no la encontró, y rechazó la FK.
+Corrección aplicada — onConflictDoNothing() en todas las tablas del bulk insert:
+// Antes — fallaba si la fila ya existía (UNIQUE violation)
+await tx.insert(registrosBasicos).values(basicos);
+// Ahora — si ya existe, la salta silenciosamente; si no existe, la inserta
+await tx.insert(registrosBasicos).values(basicos).onConflictDoNothing();
+// ídem para productivos, reproductivos y otros
+Qué hacer para tu próxima carga:
+Tu Excel debe incluir las 4 hojas (Básicos, Productivos, Reproductivos, Otros) en una sola subida. El sistema va a:
+Insertar Básicos primero → satisface la FK
+Insertar Productivos, Reproductivos y Otros → referencian los basicos recién insertados
+Si cualquier fila ya existe (mismo id_vaca + ejercicio), la salta sin error
+Si el archivo ya incluía Básicos junto con Productivos, ahora va a funcionar. Subilo de nuevo.Mostrar másDiagnosticó causa de error FK y blindó inserción con onConflictDoNothingDiagnosticó causa de error FK y blindó inserción con onConflictDoNothingAntes de volver a subir nada, hay algo mucho más importante que resolver primero: ¿por qué registros_basicos está vacía? Vos habías cargado esas 20 filas hace relativamente poco (las mismas que usamos para corregir edad por ejercicio) — que hayan desaparecido no es un detalle menor, es una pérdida de datos real, y hay que entender si fue intencional o un bug antes de seguir.
+
+"Antes de seguir: ¿por qué registros_basicos quedó en 0 filas? ¿Hay algún log de cuándo se borraron esas 20 filas — usé yo el botón 'Borrar todos los registros' en la pantalla, o pasó como efecto colateral de algún cambio de código de esta sesión (por ejemplo, al correr db:push, algún script de prueba, o el propio fix de FK)? Necesito el timestamp del DELETE y qué lo originó."

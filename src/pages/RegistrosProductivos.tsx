@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Pencil, Trash2, ArrowUpDown, Plus, X } from "lucide-react";
-import { useGanaderia, RegistroProductivo, ControlPunto, calcWood, productivoToDb } from "@/context/GanaderiaContext";
+import { Pencil, Trash2, ArrowUpDown, Plus, X, RefreshCw } from "lucide-react";
+import { useGanaderia, RegistroProductivo, ControlPunto, calcWood, productivoToDb, basicoToDb } from "@/context/GanaderiaContext";
 import { useAjustes } from "@/context/AjustesContext";
 import { ajustarWoodLM, WoodFitResult } from "@/lib/woodLM";
 import PdfReportButton from "@/components/PdfReportButton";
@@ -29,7 +29,7 @@ const parseControles = (json?: string): ControlPunto[] => {
 };
 
 const RegistrosProductivos = () => {
-  const { registrosBasicos, registrosProductivos, setRegistrosProductivos, deleteRegistro } = useGanaderia();
+  const { registrosBasicos, setRegistrosBasicos, registrosProductivos, setRegistrosProductivos, deleteRegistro } = useGanaderia();
   const { ajustes } = useAjustes();
   const metodo = ajustes.metodoWood305;
   const isInterp = metodo === "interpolacion";
@@ -43,6 +43,7 @@ const RegistrosProductivos = () => {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
   const [woodPreview, setWoodPreview] = useState<WoodFitResult | null>(null);
+  const [recalcLoading, setRecalcLoading] = useState(false);
 
   // Estado local para los controles de interpolación (N pesajes variables)
   const [controles, setControles] = useState<{ dia: string; produccion: string }[]>([]);
@@ -120,6 +121,77 @@ const RegistrosProductivos = () => {
     const result = ajustarWoodLM(pares.map(p => p.dia), pares.map(p => p.prod), raza);
     if (!result) return "";
     return result.lc305.toFixed(0);
+  };
+
+  const handleRecalcularLC305 = async () => {
+    setRecalcLoading(true);
+    let updatedProds = [...registrosProductivos];
+    let lc305Count = 0;
+
+    for (const prod of registrosProductivos) {
+      if (prod.lc305_wood && prod.lc305_wood !== "") continue;
+      const vaca = registrosBasicos.find(v => v.id_vaca === prod.id_vaca && v.ejercicio === prod.ejercicio)
+               || registrosBasicos.find(v => v.id_vaca === prod.id_vaca);
+      const raza = vaca?.raza ?? 'Holstein';
+      const pares = [
+        { dia: 30,  prod: parseFloat(prod.reg_1_dia30)  },
+        { dia: 120, prod: parseFloat(prod.reg_2_dia120) },
+        { dia: 210, prod: parseFloat(prod.reg_3_dia210) },
+        { dia: 270, prod: parseFloat(prod.reg_4_dia270) },
+      ].filter(p => !isNaN(p.prod) && p.prod > 0);
+      if (pares.length === 0) continue;
+      const result = ajustarWoodLM(pares.map(p => p.dia), pares.map(p => p.prod), raza);
+      if (!result) continue;
+      const lc305_wood = result.lc305.toFixed(0);
+      try {
+        const resp = await fetch(
+          `/api/registros_productivos/${encodeURIComponent(prod.id_vaca)}/${encodeURIComponent(prod.ejercicio)}`,
+          { method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(productivoToDb({ ...prod, lc305_wood })) }
+        );
+        if (resp.ok) {
+          updatedProds = updatedProds.map(p =>
+            p.id_vaca === prod.id_vaca && p.ejercicio === prod.ejercicio
+              ? { ...p, lc305_wood } : p
+          );
+          lc305Count++;
+        }
+      } catch { /* continuar con la siguiente fila */ }
+    }
+    setRegistrosProductivos(updatedProds);
+
+    // Ahora actualizar potencial_vaca en basicos = max LC305 por vaca
+    const maxLc305: Record<string, number> = {};
+    for (const p of updatedProds) {
+      const lc = parseFloat(p.lc305_wood);
+      if (!isNaN(lc) && lc > 0)
+        maxLc305[p.id_vaca] = Math.max(maxLc305[p.id_vaca] || 0, lc);
+    }
+    let updatedBasicos = [...registrosBasicos];
+    let basicosCount = 0;
+    for (const basico of registrosBasicos) {
+      const maxLc = maxLc305[basico.id_vaca];
+      if (!maxLc) continue;
+      const potencial_vaca = Math.round(maxLc).toString();
+      if (basico.potencial_vaca === potencial_vaca) continue;
+      try {
+        const resp = await fetch(
+          `/api/registros_basicos/${encodeURIComponent(basico.id_vaca)}/${encodeURIComponent(basico.ejercicio)}`,
+          { method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(basicoToDb({ ...basico, potencial_vaca })) }
+        );
+        if (resp.ok) {
+          updatedBasicos = updatedBasicos.map(b =>
+            b.id_vaca === basico.id_vaca && b.ejercicio === basico.ejercicio
+              ? { ...b, potencial_vaca } : b
+          );
+          basicosCount++;
+        }
+      } catch { /* continuar */ }
+    }
+    setRegistrosBasicos(updatedBasicos);
+    setRecalcLoading(false);
+    toast.success(`LC305 calculado: ${lc305Count} filas. Potencial actualizado: ${basicosCount} registros.`);
   };
 
   const emptyProd = (id_vaca: string, ejercicio: string): RegistroProductivo => ({
@@ -262,6 +334,16 @@ const RegistrosProductivos = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
         <Input placeholder="Filtrar por Id Vaca..." value={filterText} onChange={e => setFilterText(e.target.value)} className="max-w-xs" />
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRecalcularLC305}
+            disabled={recalcLoading}
+            data-testid="button-recalcular-lc305"
+            className="flex items-center gap-2 border-green-400 text-green-700 hover:bg-green-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${recalcLoading ? "animate-spin" : ""}`} />
+            {recalcLoading ? "Recalculando…" : "Recalcular LC305 + Potencial"}
+          </Button>
           <PdfReportButton
             title="Registros Productivos"
             headers={["Ejercicio", "Id Vaca", "R1 D30", "R2 D120", "R3 D210", "R4 D270", "LC305", "% Grasa", "% Prot", "L1", "L2", "L3", "L4", "L5"]}

@@ -7,6 +7,7 @@ import {
   useGanaderia, RegistroBasico, RegistroProductivo, RegistroReproductivo, RegistroOtro,
   basicoToDb, productivoToDb, reproductivoToDb, otroToDb, calcEdadAnios, ejercicioToFechaRef,
 } from "@/context/GanaderiaContext";
+import { ajustarWoodLM } from "@/lib/woodLM";
 
 const BASICOS_COLS = ["ejercicio", "id_vaca", "partos", "fecha_nacimiento", "raza", "lactancia", "edad", "potencial_vaca"];
 const PRODUCTIVOS_COLS = ["ejercicio", "id_vaca", "reg_1_dia30", "reg_2_dia120", "reg_3_dia210", "reg_4_dia270", "porcentaje_grasa", "porcentaje_proteina", "lc305_wood", "lact1", "lact2", "lact3", "lact4", "lact5"];
@@ -70,7 +71,7 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pending, setPending] = useState<PendingSection[] | null>(null);
-  const { setRegistrosBasicos, setRegistrosProductivos, setRegistrosReproductivos, setRegistrosOtros } = useGanaderia();
+  const { registrosBasicos, setRegistrosBasicos, setRegistrosProductivos, setRegistrosReproductivos, setRegistrosOtros } = useGanaderia();
 
   const parseSections = (file: File) => {
     const reader = new FileReader();
@@ -182,10 +183,30 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
         appRowsBySection.basicos.push(...appRows);
         body.basicos.push(...appRows.map(basicoToDb));
       } else if (sec.name === "Productivos") {
-        const appRows: RegistroProductivo[] = filledRows.map(r => ({
-          ...r, lc305_wood: r.lc305_wood || "",
-          lact1: r.lact1||"", lact2: r.lact2||"", lact3: r.lact3||"", lact4: r.lact4||"", lact5: r.lact5||"",
-        } as RegistroProductivo));
+        const appRows: RegistroProductivo[] = filledRows.map(r => {
+          const vacaBasico =
+            appRowsBySection.basicos.find(b => b.id_vaca === r.id_vaca) ||
+            registrosBasicos.find(b => b.id_vaca === r.id_vaca);
+          const raza = vacaBasico?.raza || 'Holstein';
+
+          let lc305_wood = r.lc305_wood || "";
+          if (!lc305_wood) {
+            const pares = [
+              { dia: 30,  prod: parseFloat(r.reg_1_dia30)  },
+              { dia: 120, prod: parseFloat(r.reg_2_dia120) },
+              { dia: 210, prod: parseFloat(r.reg_3_dia210) },
+              { dia: 270, prod: parseFloat(r.reg_4_dia270) },
+            ].filter(p => !isNaN(p.prod) && p.prod > 0);
+            if (pares.length > 0) {
+              const res = ajustarWoodLM(pares.map(p => p.dia), pares.map(p => p.prod), raza);
+              if (res) lc305_wood = res.lc305.toFixed(0);
+            }
+          }
+          return {
+            ...r, lc305_wood,
+            lact1: r.lact1||"", lact2: r.lact2||"", lact3: r.lact3||"", lact4: r.lact4||"", lact5: r.lact5||"",
+          } as RegistroProductivo;
+        });
         appRowsBySection.productivos.push(...appRows);
         body.productivos.push(...appRows.map(productivoToDb));
       } else if (sec.name === "Reproductivos") {

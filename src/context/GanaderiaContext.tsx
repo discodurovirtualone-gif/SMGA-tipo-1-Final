@@ -158,7 +158,6 @@ export const calcEdadAnios = (fechaNac: string, fechaRef?: string): number => {
   return Math.max(0, Math.floor(diffYears));
 };
 
-export const calcEdadMeses = calcEdadAnios;
 
 const toNum = (v: string): number | null => {
   if (!v || v === "") return null;

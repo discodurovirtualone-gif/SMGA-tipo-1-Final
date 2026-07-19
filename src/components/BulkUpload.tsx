@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   useGanaderia, RegistroBasico, RegistroProductivo, RegistroReproductivo, RegistroOtro,
-  basicoToDb, productivoToDb, reproductivoToDb, otroToDb, calcEdadMeses, ejercicioToFechaRef,
+  basicoToDb, productivoToDb, reproductivoToDb, otroToDb, calcEdadAnios, ejercicioToFechaRef,
 } from "@/context/GanaderiaContext";
 
 const BASICOS_COLS = ["ejercicio", "id_vaca", "partos", "fecha_nacimiento", "raza", "lactancia", "edad", "potencial_vaca"];
@@ -177,7 +177,7 @@ const BulkUpload = ({ ejercicioActivo }: Props) => {
       if (sec.name === "Básicos") {
         const appRows: RegistroBasico[] = filledRows.map(r => ({
           ...r,
-          edad: r.fecha_nacimiento ? String(Math.max(0, calcEdadMeses(r.fecha_nacimiento, ejercicioToFechaRef(r.ejercicio || ejercicioActivo || "")))) : r.edad || "",
+          edad: r.fecha_nacimiento ? String(Math.max(0, calcEdadAnios(r.fecha_nacimiento, ejercicioToFechaRef(r.ejercicio || ejercicioActivo || "")))) : r.edad || "",
         } as RegistroBasico));
         appRowsBySection.basicos.push(...appRows);
         body.basicos.push(...appRows.map(basicoToDb));

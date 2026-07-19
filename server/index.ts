@@ -75,6 +75,24 @@ app.patch("/api/registros_basicos/:id_vaca/potencial", async (req, res) => {
   }
 });
 
+app.patch("/api/registros_basicos/:id_vaca/:ejercicio/potencial", async (req, res) => {
+  try {
+    const { id_vaca, ejercicio } = req.params;
+    const { potencial_vaca } = req.body;
+    await db
+      .update(registrosBasicos)
+      .set({ potencial_vaca: String(potencial_vaca) })
+      .where(and(
+        eq(registrosBasicos.id_vaca, id_vaca),
+        eq(registrosBasicos.ejercicio, decodeURIComponent(ejercicio))
+      ));
+    res.json({ ok: true, id_vaca, ejercicio, potencial_vaca });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to patch potencial_vaca por ejercicio" });
+  }
+});
+
 app.delete("/api/registros_basicos/:id_vaca/:ejercicio", async (req, res) => {
   try {
     const { id_vaca, ejercicio } = req.params;

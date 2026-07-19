@@ -160,41 +160,65 @@ const RegistrosProductivos = () => {
     }
     setRegistrosProductivos(updatedProds);
 
-    // Ahora actualizar potencial_vaca en basicos = max LC305 por vaca
-    const maxLc305: Record<string, number> = {};
-    for (const p of updatedProds) {
-      const lc = parseFloat(p.lc305_wood);
-      if (!isNaN(lc) && lc > 0)
-        maxLc305[p.id_vaca] = Math.max(maxLc305[p.id_vaca] || 0, lc);
-    }
-    // Actualizar potencial_vaca por vaca (un solo PATCH por id_vaca, no por ejercicio)
-    const vacasConNuevoPotencial = Object.entries(maxLc305)
-      .map(([id_vaca, maxLc]) => ({ id_vaca, potencial_vaca: Math.round(maxLc).toString() }))
-      .filter(({ id_vaca, potencial_vaca }) => {
-        const actual = registrosBasicos.find(b => b.id_vaca === id_vaca)?.potencial_vaca;
-        return actual !== potencial_vaca;
-      });
+    // ── Actualizar potencial_vaca por ejercicio ──────────────────────────────
+    // Regla: potencial[ejercicio_i] = PROMEDIO de LC305 de ejercicios ANTERIORES.
+    // El primer ejercicio de cada vaca (sin historial previo) NO se recalcula.
 
+    const vacasIds = [...new Set(updatedProds.map(p => p.id_vaca))];
     let updatedBasicos = [...registrosBasicos];
     let basicosCount = 0;
-    for (const { id_vaca, potencial_vaca } of vacasConNuevoPotencial) {
-      try {
-        const resp = await fetch(
-          `/api/registros_basicos/${encodeURIComponent(id_vaca)}/potencial`,
-          { method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ potencial_vaca }) }
-        );
-        if (resp.ok) {
-          updatedBasicos = updatedBasicos.map(b =>
-            b.id_vaca === id_vaca ? { ...b, potencial_vaca } : b
-          );
-          basicosCount++;
+
+    for (const id_vaca of vacasIds) {
+      const prodsVaca = updatedProds
+        .filter(p => p.id_vaca === id_vaca)
+        .sort((a, b) => a.ejercicio.localeCompare(b.ejercicio));
+
+      const lcHistorial: number[] = [];
+
+      for (let i = 0; i < prodsVaca.length; i++) {
+        const prod = prodsVaca[i];
+        const lc = parseFloat(prod.lc305_wood);
+        const lcValido = !isNaN(lc) && lc > 0;
+
+        if (i === 0 || lcHistorial.length === 0) {
+          if (lcValido) lcHistorial.push(lc);
+          continue;
         }
-      } catch { /* continuar */ }
+
+        const promedio = Math.round(
+          lcHistorial.reduce((a, b) => a + b, 0) / lcHistorial.length
+        );
+        const potencial_vaca = promedio.toString();
+
+        const actual = updatedBasicos
+          .find(b => b.id_vaca === id_vaca && b.ejercicio === prod.ejercicio)
+          ?.potencial_vaca;
+
+        if (actual !== potencial_vaca) {
+          try {
+            const resp = await fetch(
+              `/api/registros_basicos/${encodeURIComponent(id_vaca)}` +
+              `/${encodeURIComponent(prod.ejercicio)}/potencial`,
+              { method: "PATCH", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ potencial_vaca }) }
+            );
+            if (resp.ok) {
+              updatedBasicos = updatedBasicos.map(b =>
+                b.id_vaca === id_vaca && b.ejercicio === prod.ejercicio
+                  ? { ...b, potencial_vaca } : b
+              );
+              basicosCount++;
+            }
+          } catch { /* continuar */ }
+        }
+
+        if (lcValido) lcHistorial.push(lc);
+      }
     }
+
     setRegistrosBasicos(updatedBasicos);
     setRecalcLoading(false);
-    toast.success(`LC305 calculado: ${lc305Count} filas. Potencial actualizado: ${basicosCount} registros.`);
+    toast.success(`LC305 calculado: ${lc305Count} filas. Potencial actualizado: ${basicosCount} ejercicios.`);
   };
 
   const emptyProd = (id_vaca: string, ejercicio: string): RegistroProductivo => ({

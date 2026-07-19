@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Milk, ClipboardList, NotebookPen, FileBarChart, BarChart3,
@@ -5,8 +6,14 @@ import {
   Upload, FileDown, Globe
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BulkUpload from "@/components/BulkUpload";
 import PdfDownload from "@/components/PdfDownload";
+
+const ejercicioOptions = Array.from({ length: 10 }, (_, i) => {
+  const y = 2020 + i;
+  return { value: `${y % 100}/${(y + 1) % 100}`, label: `${y % 100}/${(y + 1) % 100}` };
+});
 
 const inputItems = [
   {
@@ -122,6 +129,8 @@ const SectionLabel = ({ icon, label, color }: { icon: string; label: string; col
 );
 
 const Index = () => {
+  const [ejercicioActivo, setEjercicioActivo] = useState("");
+
   return (
     <div className="min-h-screen flex flex-col items-center p-5 md:p-8 bg-background">
 
@@ -138,7 +147,22 @@ const Index = () => {
       {/* Carga masiva y PDF */}
       <div className="flex flex-col md:flex-row gap-4 max-w-4xl w-full mb-10">
         <div className="flex-1 flex flex-col gap-2">
-          <BulkUpload />
+          <div className="flex items-center gap-2 mb-1">
+            <label className="text-sm font-semibold text-foreground whitespace-nowrap">
+              Ejercicio activo:
+            </label>
+            <Select value={ejercicioActivo} onValueChange={setEjercicioActivo}>
+              <SelectTrigger className="h-8 w-36 text-sm">
+                <SelectValue placeholder="Seleccionar" />
+              </SelectTrigger>
+              <SelectContent>
+                {ejercicioOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <BulkUpload ejercicioActivo={ejercicioActivo || undefined} />
           <p className="text-sm text-muted-foreground px-1">
             Suba un archivo Excel o CSV con todos los datos de sus animales de una sola vez.
           </p>

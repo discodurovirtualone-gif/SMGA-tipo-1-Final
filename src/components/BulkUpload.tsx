@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,40 +14,31 @@ const PRODUCTIVOS_COLS = ["ejercicio", "id_vaca", "reg_1_dia30", "reg_2_dia120",
 const REPRODUCTIVOS_COLS = ["ejercicio", "id_vaca", "parto", "raza", "servicio1", "servicio2", "servicio3", "concepcion1", "toroUsado", "aborto1", "aborto2", "parto1"];
 const OTROS_COLS = ["ejercicio", "id_vaca", "renguera", "mastitis", "facParto", "longevidad", "fortalezaPatas"];
 
-// Aliases for columns that may appear with different names in Excel
 const COL_ALIASES: Record<string, string[]> = {
   facparto: ["facilidadalparto", "facilidadparto", "facparto", "fac_parto"],
   fortalezapatas: ["fortalezadepatas", "fortalezapatas", "fortaleza_patas", "fortpatas"],
 };
 
 const ALL_SECTIONS = [
-  { name: "Básicos", cols: BASICOS_COLS, table: "registros_basicos" },
-  { name: "Productivos", cols: PRODUCTIVOS_COLS, table: "registros_productivos" },
+  { name: "Básicos",       cols: BASICOS_COLS,       table: "registros_basicos" },
+  { name: "Productivos",   cols: PRODUCTIVOS_COLS,   table: "registros_productivos" },
   { name: "Reproductivos", cols: REPRODUCTIVOS_COLS, table: "registros_reproductivos" },
-  { name: "Otros", cols: OTROS_COLS, table: "registros_otros" },
+  { name: "Otros",         cols: OTROS_COLS,         table: "registros_otros" },
 ];
 
 const normalize = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 
-// Convert Excel serial date number to YYYY-MM-DD string, return null-safe
 const excelDateToString = (v: any): string => {
   if (!v) return "";
-  // Excel serial number
   if (typeof v === "number" && v > 10000 && v < 100000) {
     const date = new Date((v - 25569) * 86400 * 1000);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString().split("T")[0];
-    }
+    if (!isNaN(date.getTime())) return date.toISOString().split("T")[0];
   }
   const s = String(v).trim();
-  // Validate it looks like a date (YYYY-MM-DD or DD/MM/YYYY etc.)
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // Try parsing other date formats
   const parsed = new Date(s);
-  if (!isNaN(parsed.getTime()) && /\d/.test(s) && s.length >= 8) {
+  if (!isNaN(parsed.getTime()) && /\d/.test(s) && s.length >= 8)
     return parsed.toISOString().split("T")[0];
-  }
-  // Not a valid date — return empty so it becomes null
   return "";
 };
 
@@ -66,20 +57,30 @@ const matchSection = (headers: string[]) => {
   return null;
 };
 
-const BulkUpload = () => {
+interface PendingSection {
+  sec: typeof ALL_SECTIONS[0];
+  rows: Record<string, string>[];
+  sinEjercicio: number;
+}
+
+interface Props {
+  ejercicioActivo?: string;
+}
+
+const BulkUpload = ({ ejercicioActivo }: Props) => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [pending, setPending] = useState<PendingSection[] | null>(null);
   const { setRegistrosBasicos, setRegistrosProductivos, setRegistrosReproductivos, setRegistrosOtros } = useGanaderia();
 
-  const processFile = (file: File) => {
+  const parseSections = (file: File) => {
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: "array" });
-        let totalRows = 0;
-        const errors: string[] = [];
-        const loaded: string[] = [];
+        const sections: PendingSection[] = [];
+        const parseErrors: string[] = [];
 
         for (const sheetName of wb.SheetNames) {
           const ws = wb.Sheets[sheetName];
@@ -88,11 +89,10 @@ const BulkUpload = () => {
 
           const headers = Object.keys(json[0]);
           let section = matchSection(headers);
-
           if (!section) {
             const sn = normalize(sheetName);
             const found = ALL_SECTIONS.find((s) => sn.includes(normalize(s.name)));
-            if (!found) { errors.push(`Hoja "${sheetName}": columnas no reconocidas`); continue; }
+            if (!found) { parseErrors.push(`Hoja "${sheetName}": columnas no reconocidas`); continue; }
             section = found;
           }
 
@@ -101,15 +101,10 @@ const BulkUpload = () => {
             const mapped: Record<string, string> = {};
             for (const col of sec.cols) {
               const normCol = normalize(col);
-              // Try direct match first, then aliases
               const aliases = COL_ALIASES[normCol] || [];
               const allNorms = [normCol, ...aliases];
-              const key = Object.keys(row).find((k) => {
-                const nk = normalize(k);
-                return allNorms.includes(nk);
-              });
+              const key = Object.keys(row).find((k) => allNorms.includes(normalize(k)));
               let val = key ? row[key] : "";
-              // Convert Excel date serials
               if (DATE_COLS.has(col)) val = excelDateToString(val);
               else val = String(val);
               mapped[col] = val;
@@ -117,87 +112,37 @@ const BulkUpload = () => {
             return mapped;
           }).filter((r) => r.id_vaca);
 
-          if (rows.length === 0) { errors.push(`Hoja "${sheetName}": sin filas válidas`); continue; }
+          if (rows.length === 0) { parseErrors.push(`Hoja "${sheetName}": sin filas válidas`); continue; }
 
-          if (sec.name === "Básicos") {
-            const appRows: RegistroBasico[] = rows.map(r => ({
-              ...r,
-              edad: r.fecha_nacimiento ? String(calcEdadMeses(r.fecha_nacimiento)) : r.edad || "",
-            } as RegistroBasico));
-            setRegistrosBasicos(prev => [...prev, ...appRows]);
-            const dbRows = appRows.map(basicoToDb);
-            try { await supabase.from('registros_basicos').insert(dbRows); }
-            catch (err: any) { errors.push(`Básicos DB: ${err.message}`); console.error(err); }
-          } else if (sec.name === "Productivos") {
-            const appRows: RegistroProductivo[] = rows.map(r => ({
-              ...r,
-              lc305_wood: r.lc305_wood || "",
-              lact1: r.lact1 || "",
-              lact2: r.lact2 || "",
-              lact3: r.lact3 || "",
-              lact4: r.lact4 || "",
-              lact5: r.lact5 || "",
-            } as RegistroProductivo));
-            setRegistrosProductivos(prev => [...prev, ...appRows]);
-            const dbRows = appRows.map(productivoToDb);
-            try { await supabase.from('registros_productivos').insert(dbRows); }
-            catch (err: any) { errors.push(`Productivos DB: ${err.message}`); console.error(err); }
-          } else if (sec.name === "Reproductivos") {
-            const appRows: RegistroReproductivo[] = rows.map(r => {
-              const parto = r.parto || "";
-              const parto1 = r.parto1 || "";
-              const concepcion1 = r.concepcion1 || "";
-              const s1 = r.servicio1 || "";
-              const s2 = r.servicio2 || "";
-              const s3 = r.servicio3 || "";
-              let iip = "";
-              if (parto && parto1) {
-                const d1 = new Date(parto), d2 = new Date(parto1);
-                const diff = Math.abs(d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
-                if (diff > 0) iip = Math.round(diff).toString();
-              }
-              let ipc = "";
-              if (parto && concepcion1) {
-                const d1 = new Date(parto), d2 = new Date(concepcion1);
-                const diff = (d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
-                if (diff > 0) ipc = Math.round(diff).toString();
-              }
-              let serv_conc = "";
-              const sCount = [s1, s2, s3].filter(Boolean).length;
-              if (sCount > 0) serv_conc = sCount.toString();
-              return { ...r, iip, ipc, serv_conc, toroUsado: r.toroUsado || "" } as RegistroReproductivo;
-            });
-            setRegistrosReproductivos(prev => [...prev, ...appRows]);
-            const dbRows = appRows.map(reproductivoToDb);
-            try { await supabase.from('registros_reproductivos').insert(dbRows); }
-            catch (err: any) { errors.push(`Reproductivos DB: ${err.message}`); console.error(err); }
-          } else if (sec.name === "Otros") {
-            const appRows = rows as unknown as RegistroOtro[];
-            setRegistrosOtros(prev => [...prev, ...appRows]);
-            const dbRows = appRows.map(otroToDb);
-            try { await supabase.from('registros_otros').insert(dbRows); }
-            catch (err: any) { errors.push(`Otros DB: ${err.message}`); console.error(err); }
-          }
-
-          totalRows += rows.length;
-          loaded.push(`${sec.name}: ${rows.length}`);
+          const sinEjercicio = rows.filter((r) => !r.ejercicio || r.ejercicio.trim() === "").length;
+          sections.push({ sec, rows, sinEjercicio });
         }
 
-        if (totalRows > 0) {
-          setStatus({ type: "success", message: `✅ ${totalRows} registros cargados (${loaded.join(", ")})` });
-          toast.success(`${totalRows} registros importados y guardados`);
-        }
-        if (errors.length > 0) {
-          setStatus(prev => ({
-            type: prev?.type === "success" ? "success" : "error",
-            message: `${prev?.message || ""}\n⚠️ ${errors.join("; ")}`,
-          }));
-          errors.forEach(err => toast.warning(err));
-        }
-        if (totalRows === 0 && errors.length === 0) {
+        if (parseErrors.length > 0) parseErrors.forEach((e) => toast.warning(e));
+
+        if (sections.length === 0) {
           setStatus({ type: "error", message: "No se encontraron datos válidos en el archivo" });
           toast.error("No se encontraron datos válidos");
+          return;
         }
+
+        const totalSinEjercicio = sections.reduce((s, p) => s + p.sinEjercicio, 0);
+
+        if (totalSinEjercicio > 0 && !ejercicioActivo) {
+          setStatus({
+            type: "error",
+            message: `⚠️ ${totalSinEjercicio} fila(s) no tienen ejercicio en el archivo. Seleccioná el ejercicio activo antes de cargar.`,
+          });
+          return;
+        }
+
+        if (totalSinEjercicio > 0 && ejercicioActivo) {
+          setPending(sections);
+          setStatus(null);
+          return;
+        }
+
+        insertSections(sections);
       } catch {
         setStatus({ type: "error", message: "Error al leer el archivo" });
         toast.error("Error al procesar el archivo");
@@ -206,28 +151,153 @@ const BulkUpload = () => {
     reader.readAsArrayBuffer(file);
   };
 
+  const insertSections = async (sections: PendingSection[]) => {
+    const errors: string[] = [];
+    const loaded: string[] = [];
+    let totalRows = 0;
+
+    for (const { sec, rows } of sections) {
+      const filledRows = rows.map((r) => ({
+        ...r,
+        ejercicio: r.ejercicio && r.ejercicio.trim() !== "" ? r.ejercicio : (ejercicioActivo ?? ""),
+      }));
+
+      if (sec.name === "Básicos") {
+        const appRows: RegistroBasico[] = filledRows.map(r => ({
+          ...r,
+          edad: r.fecha_nacimiento ? String(calcEdadMeses(r.fecha_nacimiento)) : r.edad || "",
+        } as RegistroBasico));
+        setRegistrosBasicos(prev => [...prev, ...appRows]);
+        try { await supabase.from('registros_basicos').insert(appRows.map(basicoToDb)); }
+        catch (err: any) { errors.push(`Básicos DB: ${err.message}`); }
+      } else if (sec.name === "Productivos") {
+        const appRows: RegistroProductivo[] = filledRows.map(r => ({
+          ...r, lc305_wood: r.lc305_wood || "",
+          lact1: r.lact1||"", lact2: r.lact2||"", lact3: r.lact3||"", lact4: r.lact4||"", lact5: r.lact5||"",
+        } as RegistroProductivo));
+        setRegistrosProductivos(prev => [...prev, ...appRows]);
+        try { await supabase.from('registros_productivos').insert(appRows.map(productivoToDb)); }
+        catch (err: any) { errors.push(`Productivos DB: ${err.message}`); }
+      } else if (sec.name === "Reproductivos") {
+        const appRows: RegistroReproductivo[] = filledRows.map(r => {
+          const parto = r.parto || "", parto1 = r.parto1 || "", concepcion1 = r.concepcion1 || "";
+          const s1 = r.servicio1||"", s2 = r.servicio2||"", s3 = r.servicio3||"";
+          let iip = "", ipc = "";
+          if (parto && parto1) {
+            const diff = Math.abs(new Date(parto1).getTime() - new Date(parto).getTime()) / 86400000;
+            if (diff > 0) iip = Math.round(diff).toString();
+          }
+          if (parto && concepcion1) {
+            const diff = (new Date(concepcion1).getTime() - new Date(parto).getTime()) / 86400000;
+            if (diff > 0) ipc = Math.round(diff).toString();
+          }
+          const serv_conc = [s1, s2, s3].filter(Boolean).length || "";
+          return { ...r, iip, ipc, serv_conc: String(serv_conc), toroUsado: r.toroUsado || "" } as RegistroReproductivo;
+        });
+        setRegistrosReproductivos(prev => [...prev, ...appRows]);
+        try { await supabase.from('registros_reproductivos').insert(appRows.map(reproductivoToDb)); }
+        catch (err: any) { errors.push(`Reproductivos DB: ${err.message}`); }
+      } else if (sec.name === "Otros") {
+        const appRows = filledRows as unknown as RegistroOtro[];
+        setRegistrosOtros(prev => [...prev, ...appRows]);
+        try { await supabase.from('registros_otros').insert(appRows.map(otroToDb)); }
+        catch (err: any) { errors.push(`Otros DB: ${err.message}`); }
+      }
+
+      totalRows += filledRows.length;
+      loaded.push(`${sec.name}: ${filledRows.length}`);
+    }
+
+    if (totalRows > 0) {
+      setStatus({ type: "success", message: `✅ ${totalRows} registros cargados (${loaded.join(", ")})` });
+      toast.success(`${totalRows} registros importados y guardados`);
+    }
+    if (errors.length > 0) {
+      setStatus(prev => ({
+        type: prev?.type === "success" ? "success" : "error",
+        message: `${prev?.message || ""}\n⚠️ ${errors.join("; ")}`,
+      }));
+      errors.forEach(err => toast.warning(err));
+    }
+    if (totalRows === 0 && errors.length === 0) {
+      setStatus({ type: "error", message: "No se encontraron datos válidos en el archivo" });
+    }
+    setPending(null);
+  };
+
+  const totalSinEjercicio = pending?.reduce((s, p) => s + p.sinEjercicio, 0) ?? 0;
+  const totalFilas = pending?.reduce((s, p) => s + p.rows.length, 0) ?? 0;
+
   return (
     <div className="rounded-xl border-2 border-dashed border-primary/30 bg-card p-4 w-full">
       <div className="flex flex-col sm:flex-row items-center gap-3">
         <FileSpreadsheet className="h-6 w-6 text-primary shrink-0" />
         <div className="flex-1 text-center sm:text-left">
           <p className="text-sm font-semibold text-card-foreground">Carga masiva de datos</p>
-          <p className="text-xs text-muted-foreground">Suba un archivo Excel o CSV — se guarda en la base de datos</p>
+          <p className="text-xs text-muted-foreground">
+            Suba un archivo Excel o CSV — se guarda en la base de datos
+            {ejercicioActivo && (
+              <span className="ml-1 font-medium text-primary">· Ejercicio activo: {ejercicioActivo}</span>
+            )}
+          </p>
         </div>
         <input
           ref={fileRef}
           type="file"
           accept=".xlsx,.xls,.csv"
           className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) parseSections(f); e.target.value = ""; }}
         />
-        <Button size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
-          <Upload className="h-4 w-4" /> Subir Excel/CSV
-        </Button>
+        {!pending && (
+          <Button size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
+            <Upload className="h-4 w-4" /> Subir Excel/CSV
+          </Button>
+        )}
       </div>
+
+      {/* Confirmación de ejercicio faltante */}
+      {pending && (
+        <div className="mt-3 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-800 dark:text-amber-300">
+              <p className="font-semibold">
+                {totalSinEjercicio} de {totalFilas} fila(s) no tienen ejercicio especificado en el archivo.
+              </p>
+              <p className="mt-0.5">
+                Se les asignará automáticamente el ejercicio activo:{" "}
+                <span className="font-bold">{ejercicioActivo}</span>
+              </p>
+              <p className="text-xs mt-1 text-amber-700 dark:text-amber-400">
+                Las filas que ya traen ejercicio en el archivo conservarán su valor original.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-400 text-amber-700 hover:bg-amber-100"
+              onClick={() => { setPending(null); setStatus(null); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => insertSections(pending)}
+            >
+              Confirmar e importar
+            </Button>
+          </div>
+        </div>
+      )}
+
       {status && (
         <div className={`mt-3 flex items-start gap-2 text-xs rounded-lg p-2 ${status.type === "success" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
-          {status.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+          {status.type === "success"
+            ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+            : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
           <span className="whitespace-pre-line">{status.message}</span>
         </div>
       )}
